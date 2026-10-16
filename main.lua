@@ -38,6 +38,7 @@ local playerGui = player and (player:FindFirstChild("PlayerGui") or player:FindF
 -- Değişkenler & Ayarlar
 -- ----------------------------------------------------
 local crosshairEnabled = false
+local crosshairGradientEnabled = false
 local spinEnabled = false
 local crosshairLength = 16
 local crosshairThickness = 3
@@ -72,6 +73,7 @@ local isBindingTpGun = false
 local shootKey = nil
 local isBindingShoot = false
 local isShooting = false
+local currentAimTorsoPos = nil
 local wallbangEnabled = true
 
 -- Fling Durumları
@@ -128,25 +130,22 @@ local lastSafeCFrame = nil
 local ffEnabled = false
 local currentForceField = nil
 
--- TSB (The Strongest Battlegrounds) Auto Block Koruması
+-- TSB (The Strongest Battlegrounds) Auto Block Ayarları
 local autoBlockEnabled = false
-local autoBlockRange = 25
-local isBlocking = false
-local VirtualInputManager = pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager") or nil
-
--- Forsaken (Auto Generator & Skillcheck) Ayarları
-local forsakenAutoGenEnabled = false
-local forsakenGenSpeed = 40 -- Ortanın biraz altı (Gecikme 0.40s: Anti-cheat spam korumasına takılmaz)
-local forsakenAutoSkillCheck = false
-local forsakenGenEsp = false
-local genHighlights = {}
+local tsbSettings = {
+	Range = 25,
+	Delay = 0,
+	Fov = 180,
+	Facing = false,
+	Aimhelper = false
+}
 
 
 -- ----------------------------------------------------
 -- Katman Yönetimi
 local menuGui = Instance.new("ScreenGui")
 menuGui.Name = "ZwyyVisual_Menu"
-menuGui.DisplayOrder = 10
+menuGui.DisplayOrder = 999999
 menuGui.ResetOnSpawn = false
 
 local crosshairGui = Instance.new("ScreenGui")
@@ -583,10 +582,44 @@ local function getNeonColors()
 	return coreColor, baseColor, glowAlpha, glowThickness
 end
 
+local function isShiftLocked()
+	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
+		return true
+	end
+	local locked = false
+	pcall(function()
+		local playerScripts = player and player:FindFirstChild("PlayerScripts")
+		local playerModule = playerScripts and playerScripts:FindFirstChild("PlayerModule")
+		if playerModule then
+			local ok, camModule = pcall(require, playerModule)
+			if ok and camModule and camModule.GetCameras then
+				local cams = camModule:GetCameras()
+				if cams and cams.activeMouseLockController and cams.activeMouseLockController:GetIsMouseLocked() then
+					locked = true
+				end
+			end
+		end
+	end)
+	if locked then return true end
+	pcall(function()
+		local tg = playerGui and playerGui:FindFirstChild("TouchGui")
+		local tcf = tg and tg:FindFirstChild("TouchControlFrame")
+		local sl = tcf and (tcf:FindFirstChild("ShiftLock") or tcf:FindFirstChild("ShiftLockButton"))
+		if sl and sl:IsA("ImageButton") then
+			local img = tostring(sl.Image):lower()
+			if img:find("active") or img:find("on") or img:find("locked") then
+				locked = true
+			end
+		end
+	end)
+	return locked
+end
+
 local crosshairContainer = Instance.new("Frame")
 crosshairContainer.Name = "CrosshairContainer"
 crosshairContainer.Size = UDim2.new(0, 100, 0, 100)
 crosshairContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
 crosshairContainer.BackgroundTransparency = 1
 crosshairContainer.Active = false
 crosshairContainer.Visible = false
@@ -603,7 +636,7 @@ crosshairRotator.Active = false
 crosshairRotator.ZIndex = 99999999
 crosshairRotator.Parent = crosshairContainer
 
-local armBars, armStrokes = {}, {}
+local armBars, armStrokes, armGradients = {}, {}, {}
 local angles = {45, 135, 225, 315}
 
 for _, ang in ipairs(angles) do
@@ -629,8 +662,15 @@ for _, ang in ipairs(angles) do
 	local barCorner = Instance.new("UICorner") barCorner.CornerRadius = UDim.new(1, 0) barCorner.Parent = bar
 	local glowStroke = Instance.new("UIStroke") glowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border glowStroke.Parent = bar
 
+	local barGrad = Instance.new("UIGradient")
+	barGrad.Color = ColorSequence.new(Color3.fromRGB(0, 0, 0), Color3.fromRGB(255, 255, 255))
+	barGrad.Rotation = 0
+	barGrad.Enabled = false
+	barGrad.Parent = bar
+
 	table.insert(armBars, bar)
 	table.insert(armStrokes, glowStroke)
+	table.insert(armGradients, barGrad)
 end
 
 local function updateCrosshairAppearance()
@@ -638,11 +678,25 @@ local function updateCrosshairAppearance()
 	for i, bar in ipairs(armBars) do
 		bar.Size = UDim2.new(0, crosshairThickness, 0, crosshairLength)
 		bar.Position = UDim2.new(0.5, 0, 0, -crosshairGap)
-		bar.BackgroundColor3 = coreColor
 		local stroke = armStrokes[i]
-		stroke.Color = glowColor
-		stroke.Transparency = glowAlpha
-		stroke.Thickness = glowThickness
+		local grad = armGradients[i]
+		if crosshairGradientEnabled then
+			if grad then grad.Enabled = true end
+			bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			if stroke then
+				stroke.Color = Color3.fromRGB(255, 255, 255)
+				stroke.Transparency = 0.55
+				stroke.Thickness = 1
+			end
+		else
+			if grad then grad.Enabled = false end
+			bar.BackgroundColor3 = coreColor
+			if stroke then
+				stroke.Color = glowColor
+				stroke.Transparency = glowAlpha
+				stroke.Thickness = glowThickness
+			end
+		end
 	end
 end
 updateCrosshairAppearance()
@@ -948,6 +1002,13 @@ local function triggerShootMurderer()
 		local liveChar = murderer and murderer.Character
 		local liveTorso = liveChar and (liveChar:FindFirstChild("UpperTorso") or liveChar:FindFirstChild("Torso") or liveChar:FindFirstChild("LowerTorso") or liveChar:FindFirstChild("HumanoidRootPart"))
 		local aimPos = (liveTorso and liveTorso.Position) or getPredictedPosition(murderer, shootOffset) or mRoot.Position
+		currentAimTorsoPos = aimPos
+
+		-- SpinBot kaynaklı aim bozulmasını önlemek için anında hedef Torso'suna yönel
+		pcall(function()
+			root.CFrame = CFrame.new(root.Position, Vector3.new(aimPos.X, root.Position.Y, aimPos.Z))
+			root.AssemblyAngularVelocity = Vector3.zero
+		end)
 
 		local shootRemote, remoteType = getShootRemote(gunTool)
 		if shootRemote then
@@ -971,6 +1032,7 @@ local function triggerShootMurderer()
 			hum:UnequipTools()
 		end
 
+		currentAimTorsoPos = nil
 		isShooting = false
 	end)
 end
@@ -1520,573 +1582,229 @@ RunService.Stepped:Connect(function()
 end)
 
 -- ----------------------------------------------------
--- TSB Auto Block Motoru (Otomatik Reaksiyon Bloğu)
+-- TSB Auto Block / Parry Motoru (Gelişmiş Animasyon & Yetenek Tespiti)
 -- ----------------------------------------------------
-local vimService = nil
-pcall(function() vimService = game:GetService("VirtualInputManager") end)
+;(function()
+	local vimService = nil
+	pcall(function() vimService = game:GetService("VirtualInputManager") end)
 
-local function setBlockState(state)
-	if isBlocking == state then return end
-	isBlocking = state
-	
-	-- 1. VirtualInputManager (Öncelikli Giriş)
-	pcall(function()
-		if vimService then
-			vimService:SendKeyEvent(state, Enum.KeyCode.F, false, game)
+	local anims = {
+		-- Saitama
+		["rbxassetid://10469493270"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://10469630950"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://10469639222"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://10469643643"] = { [1] = 0, [2] = 0.30 },
+		-- Hunter (Garou)
+		["rbxassetid://13532562418"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13532600125"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13532604085"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13294471966"] = { [1] = 0, [2] = 0.30 },
+		-- Cyborg (Genos)
+		["rbxassetid://13491635433"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13296577783"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13295919399"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13295936866"] = { [1] = 0, [2] = 0.30 },
+		-- Ninja (Sonic)
+		["rbxassetid://13370310513"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13390230973"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13378751717"] = { [1] = 0, [2] = 0.30 },
+		["rbxassetid://13378708199"] = { [1] = 0, [2] = 0.30 }
+	}
+
+	local dodges = {
+		["rbxassetid://10479335397"] = { [1] = 0, [2] = 0.50 },
+		["rbxassetid://13380255751"] = { [1] = 0, [2] = 0.50 }
+	}
+
+	local barrages = {
+		["rbxassetid://10466974800"] = { [1] = 0.20, [2] = 1.80 },
+		["rbxassetid://12534735382"] = { [1] = 0.20, [2] = 1.80 }
+	}
+
+	local abilities = {
+		["rbxassetid://10468665991"] = { [1] = 0.15, [2] = 0.60 },
+		["rbxassetid://13376869471"] = { [1] = 0.05, [2] = 1 },
+		["rbxassetid://13376962659"] = { [1] = 0, [2] = 2 },
+		["rbxassetid://12296882427"] = { [1] = 0.05, [2] = 1 },
+		["rbxassetid://13309500827"] = { [1] = 0.05, [2] = 1 },
+		["rbxassetid://13365849295"] = { [1] = 0, [2] = 1 },
+		["rbxassetid://13377153603"] = { [1] = 0, [2] = 1 },
+		["rbxassetid://12509505723"] = { [1] = 0.09, [2] = 2 }
+	}
+
+	local durations = {
+		["anim"] = 0.3,
+		["dodge"] = 0.9,
+		["barrage"] = 0.9,
+		["ability"] = 0.6
+	}
+
+	local cd = false
+
+	local function def(action)
+		if cd then return end
+		cd = true
+		if tsbSettings.Delay > 0 then
+			task.wait(tsbSettings.Delay)
 		end
-	end)
-
-	-- 2. keypress / keyrelease (Executor yerel fonksiyon desteği)
-	pcall(function()
-		if state then
-			if typeof(keypress) == "function" then keypress(0x46) end -- F tuşu
-		else
-			if typeof(keyrelease) == "function" then keyrelease(0x46) end
-		end
-	end)
-
-	-- 3. TSB Block Remote tetikleyicisi (Eğer karakterde varsa)
-	pcall(function()
-		local myChar = player.Character
-		if myChar then
-			local comm = myChar:FindFirstChild("Communicate") or game:GetService("ReplicatedStorage"):FindFirstChild("Communicate")
-			if comm and comm:IsA("RemoteEvent") then
-				comm:FireServer({Goal = state and "Block" or "Unblock"})
-			end
-		end
-	end)
-end
-
-local lastDangerTime = 0
-
-local function checkIncomingAttacks()
-	if not autoBlockEnabled then
-		if isBlocking then setBlockState(false) end
-		return
-	end
-
-	local myChar = player.Character
-	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-	if not myRoot then
-		if isBlocking then setBlockState(false) end
-		return
-	end
-
-	local dangerDetected = false
-	local now = os.clock()
-
-	for _, enemy in ipairs(Players:GetPlayers()) do
-		if enemy ~= player and enemy.Character then
-			local eChar = enemy.Character
-			local eRoot = eChar:FindFirstChild("HumanoidRootPart")
-			local eHum = eChar:FindFirstChildOfClass("Humanoid")
-
-			if eRoot and eHum and eHum.Health > 0 then
-				local dist = (eRoot.Position - myRoot.Position).Magnitude
-				if dist <= autoBlockRange then
-					-- 1. DASH TESPİTİ (TSB Fizik ve Hız Kontrolü):
-					local eVel = eRoot.AssemblyLinearVelocity or eRoot.Velocity or Vector3.zero
-					local speed = Vector3.new(eVel.X, 0, eVel.Z).Magnitude
-
-					-- 26'dan büyük hız veya hızlı yaklaşma:
-					if speed > 26 then
-						dangerDetected = true
-						break
-					end
-
-					-- TSB BodyMovers (Dash ve Fırlama):
-					if eRoot:FindFirstChildWhichIsA("BodyVelocity")
-						or eRoot:FindFirstChildWhichIsA("LinearVelocity")
-						or eRoot:FindFirstChildWhichIsA("VectorForce")
-						or eRoot:FindFirstChildWhichIsA("BodyPosition")
-						or eChar:FindFirstChildWhichIsA("BodyVelocity")
-						or eChar:FindFirstChildWhichIsA("LinearVelocity") then
-						dangerDetected = true
-						break
-					end
-
-					-- TSB Dash Durumları:
-					if eChar:FindFirstChild("Dashing") or eChar:FindFirstChild("Dash") or eChar:GetAttribute("Dashing") or eChar:GetAttribute("Dash") then
-						dangerDetected = true
-						break
-					end
-
-					-- 2. VURUŞ VE SALDIRI ANİMASYONLARI TESPİTİ:
-					local tracks = eHum:GetPlayingAnimationTracks()
-					for _, track in ipairs(tracks) do
-						if track.IsPlaying and track.WeightCurrent > 0.01 then
-							local trackName = track.Name:lower()
-
-							-- Yürüme, zıplama ve DANS / EMOTE animasyonlarını KESİNLİKLE hariç tut:
-							local isNonCombat = (trackName == "walk" or trackName == "run" or trackName == "idle" or trackName == "jump" or trackName == "fall" or trackName == "climb")
-								or trackName:find("walkanim") or trackName:find("runanim") or trackName:find("idleanim") or trackName:find("jumpanim") or trackName:find("fallanim")
-								or trackName:find("emote") or trackName:find("dance") or trackName:find("cheer") or trackName:find("wave") or trackName:find("laugh") or trackName:find("point")
-								or trackName:find("floss") or trackName:find("sit") or trackName:find("pose") or trackName:find("taunt")
-
-							-- Roblox & TSB Emote kontrolü (Karakter emote oynatıyorsa):
-							local isEmoting = eChar:FindFirstChild("Emote") or eChar:GetAttribute("Emoting") or eChar:GetAttribute("Emote")
-
-							if not isNonCombat and not isEmoting then
-								local isCombatOrDash = trackName:find("dash")
-									or trackName:find("attack")
-									or trackName:find("punch")
-									or trackName:find("m1")
-									or trackName:find("m2")
-									or trackName:find("strike")
-									or trackName:find("kick")
-									or trackName:find("slam")
-									or trackName:find("swing")
-									or trackName:find("hit")
-									or trackName:find("slash")
-									or trackName:find("skill")
-									or trackName:find("ability")
-									or trackName:find("heavy")
-									or trackName:find("uppercut")
-									or trackName:find("rush")
-
-								-- TSB'de gerçek saldırı animasyonları (Length < 2.5 saniyedir, emoteler ise 3-10+ saniyedir):
-								local isCombatAction = (track.Priority == Enum.AnimationPriority.Action 
-									or track.Priority == Enum.AnimationPriority.Action2 
-									or track.Priority == Enum.AnimationPriority.Action3 
-									or track.Priority == Enum.AnimationPriority.Action4)
-									and (track.Length > 0.05 and track.Length < 2.5)
-									and not track.Looped -- Emote'lar döngülüdür (looped), saldırılar döngüsüzdür
-
-								if isCombatOrDash or isCombatAction then
-									dangerDetected = true
-									break
-								end
-							end
-						end
-					end
-
-					if dangerDetected then break end
-				end
-			end
-		end
-	end
-
-	if dangerDetected then
-		lastDangerTime = now
-		setBlockState(true)
-	else
-		-- Dash veya vuruş bittikten sonra bloğu milisaniyelik bırak (0.08 saniye koruma süresi):
-		if isBlocking and (now - lastDangerTime > 0.08) then
-			setBlockState(false)
-		end
-	end
-end
-
--- Heartbeat döngüsü (Optimize edilmiş kontrol)
-local lastBlockCheck = 0
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
-	if now - lastBlockCheck >= 0.02 then
-		lastBlockCheck = now
-		checkIncomingAttacks()
-	end
-end)
-
--- Düşman karaktere Dash / Vuruş nesnesi eklendiği an INSTANT blok tetiklemesi:
-local function hookEnemyEvents(enemy)
-	local function onChar(char)
-		char.ChildAdded:Connect(function(child)
-			if autoBlockEnabled and (child:IsA("BodyVelocity") or child:IsA("LinearVelocity") or child.Name:lower():find("dash")) then
-				local myChar = player.Character
-				local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-				local root = char:FindFirstChild("HumanoidRootPart")
-				if myRoot and root and (root.Position - myRoot.Position).Magnitude <= autoBlockRange then
-					lastDangerTime = os.clock()
-					setBlockState(true)
+		pcall(function()
+			local myChar = player.Character
+			if myChar then
+				local comm = myChar:FindFirstChild("Communicate")
+				if comm and comm:IsA("RemoteEvent") then
+					comm:FireServer({["Goal"] = "KeyPress", ["Key"] = Enum.KeyCode.F})
 				end
 			end
 		end)
+		pcall(function()
+			if vimService then
+				vimService:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+			end
+		end)
+		task.wait(durations[action] or 0.3)
+		pcall(function()
+			local myChar = player.Character
+			if myChar then
+				local comm = myChar:FindFirstChild("Communicate")
+				if comm and comm:IsA("RemoteEvent") then
+					comm:FireServer({["Goal"] = "KeyRelease", ["Key"] = Enum.KeyCode.F})
+				end
+			end
+		end)
+		pcall(function()
+			if vimService then
+				vimService:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+			end
+		end)
+		cd = false
 	end
-	enemy.CharacterAdded:Connect(onChar)
-	if enemy.Character then onChar(enemy.Character) end
-end
 
-for _, p in ipairs(Players:GetPlayers()) do
-	if p ~= player then hookEnemyEvents(p) end
-end
-Players.PlayerAdded:Connect(hookEnemyEvents)
+	local function closest()
+		local closestplr = {}
+		local myChar = player.Character
+		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		if not myRoot then return closestplr end
 
--- ----------------------------------------------------
--- Forsaken Auto Generator & Skillcheck Motoru (Lag-Free & Zero-Stutter Cache)
--- ----------------------------------------------------
-local cachedGenerators = {}
+		for _, v in ipairs(Players:GetPlayers()) do
+			if v ~= player and v.Character and v.Character ~= myChar then
+				local eRoot = v.Character:FindFirstChild("HumanoidRootPart")
+				if eRoot and (eRoot.Position - myRoot.Position).Magnitude < tsbSettings.Range then
+					table.insert(closestplr, v)
+				end
+			end
+		end
+		return closestplr
+	end
 
-local function isGeneratorObject(obj)
-	if not (obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("Folder")) then return false end
-	local n = obj.Name:lower()
-	if n:find("gen") or n:find("generator") or n:find("motor") or n:find("engine") 
-		or n:find("machine") or n:find("puzzle") or n:find("station") or n:find("repair") 
-		or n:find("power") or n:find("panel") then
+	local function attackchecker()
+		local myChar = player.Character
+		if not myChar then return false end
+		local hum = myChar:FindFirstChildOfClass("Humanoid")
+		local animator = hum and hum:FindFirstChildOfClass("Animator")
+		if not animator then return false end
+
+		for _, Anim in ipairs(animator:GetPlayingAnimationTracks()) do
+			local id = Anim.Animation and Anim.Animation.AnimationId
+			if id and (anims[id] or dodges[id] or abilities[id] or barrages[id]) then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function isfacing(enemyChar)
+		if not tsbSettings.Facing then return true end
+		local myChar = player.Character
+		local myHead = myChar and myChar:FindFirstChild("Head")
+		local eHead = enemyChar and enemyChar:FindFirstChild("Head")
+		if not myHead or not eHead then return true end
+
+		local plrDirection = myHead.CFrame.LookVector
+		local unit = (eHead.CFrame.Position - myHead.CFrame.Position).Unit
+		local value = math.pow((plrDirection - unit).Magnitude / 2, 2)
+		if value >= tsbSettings.Fov / 360 then
+			return false
+		else
+			return true
+		end
+	end
+
+	local function allowed(enemyChar)
+		local myChar = player.Character
+		if not myChar then return false end
+		if myChar:FindFirstChild("M1ing") then return false end
+		if attackchecker() then return false end
+		if not isfacing(enemyChar) then return false end
 		return true
 	end
-	local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-	if prompt then return true end
-	local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-	if click then return true end
-	return false
-end
 
-local function scanGenerators()
-	local found = {}
-	local seen = {}
-
-	local function checkObj(obj)
-		if not obj or seen[obj] then return end
-		seen[obj] = true
-		if isGeneratorObject(obj) then
-			table.insert(found, obj)
+	local function lookat(enemyChar)
+		if not tsbSettings.Aimhelper then return end
+		local myChar = player.Character
+		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		local eRoot = enemyChar and enemyChar:FindFirstChild("HumanoidRootPart")
+		if myRoot and eRoot then
+			myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(eRoot.Position.X, myRoot.Position.Y, eRoot.Position.Z))
 		end
 	end
 
-	-- 1. Workspace ve tüm harita alt klasörlerini güvenli tara (0 lag)
-	for _, child in ipairs(Workspace:GetChildren()) do
-		checkObj(child)
-		if child:IsA("Folder") or child:IsA("Model") then
-			for _, sub in ipairs(child:GetChildren()) do
-				checkObj(sub)
-				if sub:IsA("Folder") or sub:IsA("Model") then
-					for _, sub2 in ipairs(sub:GetChildren()) do
-						checkObj(sub2)
-					end
-				end
-			end
-		end
-	end
+	local function parry()
+		if not autoBlockEnabled then return end
+		local myChar = player.Character
+		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		if not myRoot then return end
 
-	cachedGenerators = found
-end
+		for _, c in ipairs(closest()) do
+			local eChar = c.Character
+			local eHum = eChar and eChar:FindFirstChildOfClass("Humanoid")
+			local animator = eHum and eHum:FindFirstChildOfClass("Animator")
+			if animator and allowed(eChar) then
+				for _, v in ipairs(animator:GetPlayingAnimationTracks()) do
+					local animId = v.Animation and v.Animation.AnimationId
+					if animId then
+						local anim = anims[animId]
+						local dodge = dodges[animId]
+						local ability = abilities[animId]
+						local barrage = barrages[animId]
+						local pos = v.TimePosition
 
--- Arka planda donma yapmadan periyodik hafif önbellekleme
-task.spawn(function()
-	pcall(scanGenerators)
-	while true do
-		task.wait(5)
-		pcall(scanGenerators)
-	end
-end)
-
-local function getNearbyGenerators(maxDist)
-	local genList = {}
-	local myChar = player.Character
-	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-	if not myRoot then return genList end
-
-	if #cachedGenerators == 0 then
-		scanGenerators()
-	end
-
-	for _, obj in ipairs(cachedGenerators) do
-		if obj and obj.Parent then
-			local primaryPart = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"))
-			if primaryPart then
-				local dist = (primaryPart.Position - myRoot.Position).Magnitude
-				if not maxDist or dist <= maxDist then
-					table.insert(genList, {Object = obj, Part = primaryPart, Distance = dist})
-				end
-			end
-		end
-	end
-	table.sort(genList, function(a, b) return a.Distance < b.Distance end)
-	return genList
-end
-
-local function triggerPromptSafe(prompt)
-	if not prompt or not prompt.Enabled then return end
-	pcall(function()
-		if typeof(fireproximityprompt) == "function" then
-			fireproximityprompt(prompt, 0)
-			fireproximityprompt(prompt, 1)
-			if prompt.HoldDuration and prompt.HoldDuration > 0 then
-				fireproximityprompt(prompt, prompt.HoldDuration)
-			end
-		end
-		if prompt.InputHoldBegin then prompt:InputHoldBegin() end
-	end)
-end
-
--- Anti-Cheat Korumalı Tamamen Silent Auto Generator Motoru (Sürekli & Otomatik)
-task.spawn(function()
-	while true do
-		if forsakenAutoGenEnabled then
-			pcall(function()
-				local myChar = player.Character
-				local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-				if myRoot then
-					local gens = getNearbyGenerators(26) -- 26 stud menzil
-					if #gens > 0 then
-						for _, gData in ipairs(gens) do
-							local targetGen = gData.Object
-
-							-- 1. ProximityPrompt'ları anında sessizce tetikle
-							for _, desc in ipairs(targetGen:GetDescendants()) do
-								if desc:IsA("ProximityPrompt") then
-									triggerPromptSafe(desc)
-								elseif desc:IsA("ClickDetector") then
-									pcall(function()
-										if typeof(fireclickdetector) == "function" then
-											fireclickdetector(desc)
-										end
-									end)
-								end
-							end
-
-							-- 2. Sessiz F ve E tuşu basılı tutma simülasyonu
-							pcall(function()
-								if vimService then
-									vimService:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-									vimService:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-								end
-								if typeof(keypress) == "function" then
-									keypress(0x46)
-									keypress(0x45)
-								end
+						if anim and pos >= anim[1] and pos <= anim[2] then
+							task.spawn(function()
+								lookat(eChar)
+								def("anim")
 							end)
-
-							-- 3. Jeneratör içindeki RemoteEvent / RemoteFunction paketlerini tetikle
-							for _, desc in ipairs(targetGen:GetDescendants()) do
-								if desc:IsA("RemoteEvent") then
-									pcall(function() desc:FireServer(true) end)
-									pcall(function() desc:FireServer("Progress", 1) end)
-									pcall(function() desc:FireServer("Repair", true) end)
-									pcall(function() desc:FireServer(1) end)
-								elseif desc:IsA("RemoteFunction") then
-									pcall(function() desc:InvokeServer(true) end)
-									pcall(function() desc:InvokeServer("Progress", 1) end)
-									pcall(function() desc:InvokeServer("Repair", true) end)
-								end
-							end
-						end
-
-						-- 4. ReplicatedStorage genel jeneratör remotelerini güvenle tetikle
-						pcall(function()
-							local rep = game:GetService("ReplicatedStorage")
-							for _, r in ipairs(rep:GetChildren()) do
-								if r:IsA("RemoteEvent") then
-									local rName = r.Name:lower()
-									if rName:find("gen") or rName:find("repair") or rName:find("progress") then
-										r:FireServer(true)
-									end
-								end
-							end
-						end)
-					else
-						-- Yakında jeneratör yoksa tuşları serbest bırak
-						pcall(function()
-							if vimService then
-								vimService:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-								vimService:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-							end
-							if typeof(keyrelease) == "function" then
-								keyrelease(0x46)
-								keyrelease(0x45)
-							end
-						end)
-					end
-				end
-			end)
-		end
-		-- Anti-cheat paket hız sınırlayıcı (0.35s - 0.45s güvenli pacing)
-		local safeDelay = math.clamp(0.65 - (forsakenGenSpeed * 0.005), 0.32, 0.55)
-		task.wait(safeDelay)
-	end
-end)
-
--- =========================================================================
--- FORSAKEN UNIVERSAL ON-SCREEN MINIGAME & SKILLCHECK AUTO-SOLVER
--- =========================================================================
-local function isOurGui(gui)
-	if not gui then return true end
-	return gui == menuGui or gui == espDrawingGui or gui == crosshairGui 
-		or gui.Name == "RobloxGui" or gui.Name == "Chat" or gui.Name == "Freecam"
-end
-
-local lastQteHit = 0
-
-local function solveOnScreenMinigame(gui)
-	if not gui:IsA("ScreenGui") or not gui.Enabled or isOurGui(gui) then return end
-
-	local gName = gui.Name:lower()
-	local isSkillCheckGui = gName:find("skill") or gName:find("qte") or gName:find("check") 
-		or gName:find("generator") or gName:find("gen") or gName:find("repair") 
-		or gName:find("puzzle") or gName:find("minigame")
-
-	-- Yalnızca gerçek bir jeneratör / skillcheck arayüzü ise kontrol et
-	if not isSkillCheckGui then return end
-
-	-- 1. DÖNEN İBRE / CIRCULAR SKILLCHECK & LINEAR QTE TESPİTİ
-	for _, desc in ipairs(gui:GetDescendants()) do
-		if desc:IsA("GuiObject") and desc.Visible then
-			local dName = desc.Name:lower()
-
-			-- İbre, İğne veya Çember Göstergesi (bar kaldırıldı, zıplama spamı engellendi)
-			if dName:find("needle") or dName:find("indicator") or dName:find("pointer") 
-				or dName:find("arrow") or dName:find("hand") or dName:find("cursor") or dName:find("wheel") then
-				
-				local parent = desc.Parent
-				local zone = parent and (parent:FindFirstChild("Zone", true) or parent:FindFirstChild("Success", true) 
-					or parent:FindFirstChild("Target", true) or parent:FindFirstChild("WhiteZone", true) 
-					or parent:FindFirstChild("Great", true) or parent:FindFirstChild("Good", true) 
-					or parent:FindFirstChild("Hit", true) or parent:FindFirstChild("Green", true))
-
-				local shouldTrigger = false -- Kesinlikle varsayılan false
-				if zone and zone:IsA("GuiObject") and zone.Visible then
-					-- A) Dairesel / Rotation Kontrolü:
-					if math.abs(desc.Rotation) > 0 or math.abs(zone.Rotation) > 0 then
-						local needleRot = desc.Rotation % 360
-						local zoneRot = zone.Rotation % 360
-						local diff = math.abs(needleRot - zoneRot)
-						if diff <= 28 or diff >= 332 then
-							shouldTrigger = true
-						end
-					-- B) Doğrusal / X-Axis Pozisyon Kontrolü:
-					else
-						local nX = desc.AbsolutePosition.X
-						local zX = zone.AbsolutePosition.X
-						local zW = zone.AbsoluteSize.X
-						if nX >= zX - 10 and nX <= zX + zW + 10 then
-							shouldTrigger = true
+							break
+						elseif dodge and pos > dodge[1] and pos < dodge[2] then
+							task.spawn(function()
+								lookat(eChar)
+								def("dodge")
+							end)
+							break
+						elseif barrage and pos > barrage[1] and pos < barrage[2] then
+							task.spawn(function()
+								lookat(eChar)
+								def("barrage")
+							end)
+							break
+						elseif ability and pos > ability[1] and pos < ability[2] then
+							task.spawn(function()
+								lookat(eChar)
+								def("ability")
+							end)
+							break
 						end
 					end
 				end
-
-				if shouldTrigger then
-					local now = os.clock()
-					if now - lastQteHit >= 0.35 then
-						lastQteHit = now
-						-- QTE Tuşlarına basarak çöz (Space, E, F)
-						pcall(function()
-							if vimService then
-								vimService:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-								vimService:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-								vimService:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-								task.wait(0.03)
-								vimService:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-								vimService:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-								vimService:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-							end
-							if typeof(keypress) == "function" then
-								keypress(0x20)
-								keypress(0x45)
-								keypress(0x46)
-								task.wait(0.03)
-								if typeof(keyrelease) == "function" then
-									keyrelease(0x20)
-									keyrelease(0x45)
-									keyrelease(0x46)
-								end
-							end
-						end)
-					end
-				end
-			end
-
-			-- 2. PUZZLE / WIRE / DOT / TILE BULMACA BUTONLARINI ÇÖZME
-			if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-				local bName = desc.Name:lower()
-				if bName:find("tile") or bName:find("node") or bName:find("dot") 
-					or bName:find("wire") or bName:find("button") or bName:find("click") 
-					or bName:find("slot") or bName:find("cell") or bName:find("solve") or bName:find("hit") then
-					pcall(function()
-						if typeof(firesignal) == "function" then
-							firesignal(desc.MouseButton1Click)
-							firesignal(desc.Activated)
-							firesignal(desc.MouseButton1Down)
-							firesignal(desc.MouseButton1Up)
-						end
-					end)
-				end
-			end
-
-			-- 3. UI İçindeki RemoteEvent / RemoteFunction'ları Otomatik Tetikle
-			if desc:IsA("RemoteEvent") then
-				pcall(function() desc:FireServer(true) end)
-				pcall(function() desc:FireServer("Success", true) end)
-				pcall(function() desc:FireServer("Progress", 1) end)
-				pcall(function() desc:FireServer(1) end)
-			elseif desc:IsA("RemoteFunction") then
-				pcall(function() desc:InvokeServer(true) end)
-				pcall(function() desc:InvokeServer("Success", true) end)
-				pcall(function() desc:InvokeServer("Progress", 1) end)
 			end
 		end
 	end
-end
 
--- Ekran Taraması: Sürekli ve Anlık Event Tetiklemeli
-task.spawn(function()
-	while true do
-		if forsakenAutoSkillCheck or forsakenAutoGenEnabled then
-			pcall(function()
-				local pGui = player:FindFirstChild("PlayerGui")
-				if pGui then
-					for _, g in ipairs(pGui:GetChildren()) do
-						solveOnScreenMinigame(g)
-					end
-				end
-			end)
+	RunService.RenderStepped:Connect(function()
+		if autoBlockEnabled then
+			parry()
 		end
-		task.wait(0.015)
-	end
-end)
-
--- Ekrana Yeni UI Geldiği An 0ms Gecikmesiz Anında Yakalama Hook'u
-pcall(function()
-	local pGui = player:WaitForChild("PlayerGui", 5)
-	if pGui then
-		pGui.ChildAdded:Connect(function(child)
-			if (forsakenAutoSkillCheck or forsakenAutoGenEnabled) and child:IsA("ScreenGui") then
-				task.spawn(function()
-					for _ = 1, 12 do
-						solveOnScreenMinigame(child)
-						task.wait(0.02)
-					end
-				end)
-			end
-		end)
-		pGui.DescendantAdded:Connect(function(desc)
-			if forsakenAutoSkillCheck or forsakenAutoGenEnabled then
-				local screen = desc:FindFirstAncestorWhichIsA("ScreenGui")
-				if screen and not isOurGui(screen) then
-					solveOnScreenMinigame(screen)
-				end
-			end
-		end)
-	end
-end)
-
--- Generator ESP
-local function updateGeneratorESP()
-	if not forsakenGenEsp then
-		for _, hl in pairs(genHighlights) do
-			if hl then hl:Destroy() end
-		end
-		genHighlights = {}
-		return
-	end
-
-	local gens = getNearbyGenerators(1000)
-	for _, g in ipairs(gens) do
-		local obj = g.Object
-		if not genHighlights[obj] then
-			local hl = Instance.new("Highlight")
-			hl.FillColor = Color3.fromRGB(0, 220, 255)
-			hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-			hl.FillTransparency = 0.4
-			hl.OutlineTransparency = 0
-			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-			hl.Adornee = obj
-			hl.Parent = espDrawingGui
-			genHighlights[obj] = hl
-		else
-			genHighlights[obj].Enabled = true
-		end
-	end
-end
+	end)
+end)()
 
 -- ----------------------------------------------------
 -- Optimizer
@@ -2125,7 +1843,6 @@ local mainStroke
 local mainContent
 local mm2Content
 local tsbContent
-local forsakenContent
 local currentTab = "MAIN"
 local closeButton
 local toggleGUI
@@ -2285,7 +2002,7 @@ subTitle.BackgroundTransparency = 1
 subTitle.ZIndex = 7
 subTitle.Parent = brandContainer
 
--- Sekme Değiştirici Konteyner (Tab Selector - 4 Sekme: MAIN, MM2, TSB, FORSAKEN)
+-- Sekme Değiştirici Konteyner (Tab Selector - 3 Sekme: MAIN, MM2, TSB)
 local tabNavContainer = Instance.new("Frame")
 tabNavContainer.Size = UDim2.new(0, 276, 0, 28)
 tabNavContainer.Position = UDim2.new(0.5, -124, 0.5, -14)
@@ -2305,7 +2022,7 @@ tabNavStroke.Parent = tabNavContainer
 
 -- Sekme Kayan Gösterge (Sliding Pill Indicator - 1/4 Genişlik)
 local tabIndicator = Instance.new("Frame")
-tabIndicator.Size = UDim2.new(0.25, -4, 1, -4)
+tabIndicator.Size = UDim2.new(1/3, -4, 1, -4)
 tabIndicator.Position = UDim2.new(0, 2, 0, 2)
 tabIndicator.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
 tabIndicator.BorderSizePixel = 0
@@ -2321,13 +2038,13 @@ indStroke.Color = Color3.fromRGB(42, 42, 42)
 indStroke.Thickness = 1
 indStroke.Parent = tabIndicator
 
--- Sekme Düğmeleri (MAIN, MM2, TSB, FORSAKEN)
+-- Sekme Düğmeleri (MAIN, MM2, TSB)
 local mainTabBtn = Instance.new("TextButton")
 mainTabBtn.Text = "MAIN"
 mainTabBtn.Font = Enum.Font.GothamBold
 mainTabBtn.TextSize = 10
 mainTabBtn.TextColor3 = Color3.fromRGB(250, 250, 250)
-mainTabBtn.Size = UDim2.new(0.25, 0, 1, 0)
+mainTabBtn.Size = UDim2.new(1/3, 0, 1, 0)
 mainTabBtn.Position = UDim2.new(0, 0, 0, 0)
 mainTabBtn.BackgroundTransparency = 1
 mainTabBtn.ZIndex = 8
@@ -2338,8 +2055,8 @@ mm2TabBtn.Text = "MM2"
 mm2TabBtn.Font = Enum.Font.GothamBold
 mm2TabBtn.TextSize = 10
 mm2TabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-mm2TabBtn.Size = UDim2.new(0.25, 0, 1, 0)
-mm2TabBtn.Position = UDim2.new(0.25, 0, 0, 0)
+mm2TabBtn.Size = UDim2.new(1/3, 0, 1, 0)
+mm2TabBtn.Position = UDim2.new(1/3, 0, 0, 0)
 mm2TabBtn.BackgroundTransparency = 1
 mm2TabBtn.ZIndex = 8
 mm2TabBtn.Parent = tabNavContainer
@@ -2349,22 +2066,11 @@ tsbTabBtn.Text = "TSB"
 tsbTabBtn.Font = Enum.Font.GothamBold
 tsbTabBtn.TextSize = 10
 tsbTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-tsbTabBtn.Size = UDim2.new(0.25, 0, 1, 0)
-tsbTabBtn.Position = UDim2.new(0.50, 0, 0, 0)
+tsbTabBtn.Size = UDim2.new(1/3, 0, 1, 0)
+tsbTabBtn.Position = UDim2.new(2/3, 0, 0, 0)
 tsbTabBtn.BackgroundTransparency = 1
 tsbTabBtn.ZIndex = 8
 tsbTabBtn.Parent = tabNavContainer
-
-local forsakenTabBtn = Instance.new("TextButton")
-forsakenTabBtn.Text = "FORSAKEN"
-forsakenTabBtn.Font = Enum.Font.GothamBold
-forsakenTabBtn.TextSize = 10
-forsakenTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-forsakenTabBtn.Size = UDim2.new(0.25, 0, 1, 0)
-forsakenTabBtn.Position = UDim2.new(0.75, 0, 0, 0)
-forsakenTabBtn.BackgroundTransparency = 1
-forsakenTabBtn.ZIndex = 8
-forsakenTabBtn.Parent = tabNavContainer
 
 -- Kapatma Düğmesi (Matematiksel Geometrik X)
 closeButton = Instance.new("TextButton")
@@ -2465,18 +2171,6 @@ tsbContent.Visible = false
 tsbContent.ZIndex = 3
 tsbContent.Parent = mainFrame
 
-forsakenContent = Instance.new("ScrollingFrame")
-forsakenContent.Name = "ForsakenContent"
-forsakenContent.Size = UDim2.new(1, -20, 1, -50)
-forsakenContent.Position = UDim2.new(0, 10, 0, 46)
-forsakenContent.BackgroundTransparency = 1
-forsakenContent.BorderSizePixel = 0
-forsakenContent.ScrollBarThickness = 4
-forsakenContent.ScrollBarImageColor3 = Color3.fromRGB(65, 65, 65)
-forsakenContent.CanvasSize = UDim2.new(0, 0, 0, 0)
-forsakenContent.Visible = false
-forsakenContent.ZIndex = 3
-forsakenContent.Parent = mainFrame
 
 local mainLayout = Instance.new("UIListLayout")
 mainLayout.Padding = UDim.new(0, 8)
@@ -2493,10 +2187,6 @@ tsbLayout.Padding = UDim.new(0, 8)
 tsbLayout.SortOrder = Enum.SortOrder.LayoutOrder
 tsbLayout.Parent = tsbContent
 
-local forsakenLayout = Instance.new("UIListLayout")
-forsakenLayout.Padding = UDim.new(0, 8)
-forsakenLayout.SortOrder = Enum.SortOrder.LayoutOrder
-forsakenLayout.Parent = forsakenContent
 
 mainLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 	mainContent.CanvasSize = UDim2.new(0, 0, 0, mainLayout.AbsoluteContentSize.Y + 20)
@@ -2510,9 +2200,6 @@ tsbLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 	tsbContent.CanvasSize = UDim2.new(0, 0, 0, tsbLayout.AbsoluteContentSize.Y + 20)
 end)
 
-forsakenLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	forsakenContent.CanvasSize = UDim2.new(0, 0, 0, forsakenLayout.AbsoluteContentSize.Y + 20)
-end)
 
 -- Sekme Değiştirme Animasyonu (Quart Interpolation)
 currentTab = "MAIN"
@@ -2522,14 +2209,12 @@ mainTabBtn.MouseButton1Click:Connect(function()
 	mainContent.Visible = true
 	mm2Content.Visible = false
 	tsbContent.Visible = false
-	forsakenContent.Visible = false
 	TweenService:Create(tabIndicator, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
 		Position = UDim2.new(0, 2, 0, 2)
 	}):Play()
 	mainTabBtn.TextColor3 = Color3.fromRGB(250, 250, 250)
 	mm2TabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 	tsbTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-	forsakenTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 end)
 
 mm2TabBtn.MouseButton1Click:Connect(function()
@@ -2538,14 +2223,12 @@ mm2TabBtn.MouseButton1Click:Connect(function()
 	mainContent.Visible = false
 	mm2Content.Visible = true
 	tsbContent.Visible = false
-	forsakenContent.Visible = false
 	TweenService:Create(tabIndicator, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.25, 2, 0, 2)
+		Position = UDim2.new(1/3, 2, 0, 2)
 	}):Play()
 	mm2TabBtn.TextColor3 = Color3.fromRGB(250, 250, 250)
 	mainTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 	tsbTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-	forsakenTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 end)
 
 tsbTabBtn.MouseButton1Click:Connect(function()
@@ -2554,30 +2237,12 @@ tsbTabBtn.MouseButton1Click:Connect(function()
 	mainContent.Visible = false
 	mm2Content.Visible = false
 	tsbContent.Visible = true
-	forsakenContent.Visible = false
 	TweenService:Create(tabIndicator, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.50, 2, 0, 2)
+		Position = UDim2.new(2/3, 2, 0, 2)
 	}):Play()
 	tsbTabBtn.TextColor3 = Color3.fromRGB(250, 250, 250)
 	mainTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 	mm2TabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-	forsakenTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-end)
-
-forsakenTabBtn.MouseButton1Click:Connect(function()
-	if currentTab == "FORSAKEN" then return end
-	currentTab = "FORSAKEN"
-	mainContent.Visible = false
-	mm2Content.Visible = false
-	tsbContent.Visible = false
-	forsakenContent.Visible = true
-	TweenService:Create(tabIndicator, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.75, 2, 0, 2)
-	}):Play()
-	forsakenTabBtn.TextColor3 = Color3.fromRGB(250, 250, 250)
-	mainTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-	mm2TabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-	tsbTabBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
 end)
 end)() -- UI Base Setup Scope
 
@@ -3634,10 +3299,64 @@ end)() -- End Main Tab Scope 2
 	-- 8. Crosshair (Minimal X)
 	local chCard, chToggleBtn, setChVisual = createModuleCard(mainContent, "Crosshair (Minimal X)")
 	local chGear = createGearButton(chCard)
-	local chPanel = createSettingsPanel(mainContent, 160)
+	local chPanel = createSettingsPanel(mainContent, 260)
+	local gradBtnStroke = nil
 
 	addColorPaletteRow(chPanel, "Nişangah Rengi", baseColor, function(newCol)
 		baseColor = newCol
+		crosshairGradientEnabled = false
+		if gradBtnStroke then
+			gradBtnStroke.Color = Color3.fromRGB(50, 50, 50)
+		end
+		updateCrosshairAppearance()
+	end)
+
+	-- Gradient Renk Modu: background: linear-gradient(to right, #000000, #ffffff);
+	local gradRow = Instance.new("Frame")
+	gradRow.Size = UDim2.new(1, 0, 0, 36)
+	gradRow.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+	gradRow.BorderSizePixel = 0
+	gradRow.ZIndex = 5
+	gradRow.Parent = chPanel
+
+	local grCorner = Instance.new("UICorner") grCorner.CornerRadius = UDim.new(0, 4) grCorner.Parent = gradRow
+	local grStroke = Instance.new("UIStroke") grStroke.Color = Color3.fromRGB(24, 24, 24) grStroke.Thickness = 1 grStroke.Parent = gradRow
+
+	local grLabel = Instance.new("TextLabel")
+	grLabel.Text = "Gradient (Siyah -> Beyaz)"
+	grLabel.Size = UDim2.new(0, 160, 1, 0)
+	grLabel.Position = UDim2.new(0, 10, 0, 0)
+	grLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
+	grLabel.Font = Enum.Font.Gotham
+	grLabel.TextSize = 12
+	grLabel.BackgroundTransparency = 1
+	grLabel.TextXAlignment = Enum.TextXAlignment.Left
+	grLabel.ZIndex = 6
+	grLabel.Parent = gradRow
+
+	local gradBtn = Instance.new("TextButton")
+	gradBtn.Text = ""
+	gradBtn.Size = UDim2.new(0, 48, 0, 20)
+	gradBtn.Position = UDim2.new(1, -58, 0.5, -10)
+	gradBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	gradBtn.BorderSizePixel = 0
+	gradBtn.ZIndex = 6
+	gradBtn.Parent = gradRow
+
+	local gbCorner = Instance.new("UICorner") gbCorner.CornerRadius = UDim.new(0, 4) gbCorner.Parent = gradBtn
+	local gbGrad = Instance.new("UIGradient")
+	gbGrad.Color = ColorSequence.new(Color3.fromRGB(0, 0, 0), Color3.fromRGB(255, 255, 255))
+	gbGrad.Rotation = 0
+	gbGrad.Parent = gradBtn
+
+	gradBtnStroke = Instance.new("UIStroke")
+	gradBtnStroke.Color = crosshairGradientEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(50, 50, 50)
+	gradBtnStroke.Thickness = 1.5
+	gradBtnStroke.Parent = gradBtn
+
+	gradBtn.MouseButton1Click:Connect(function()
+		crosshairGradientEnabled = not crosshairGradientEnabled
+		gradBtnStroke.Color = crosshairGradientEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(50, 50, 50)
 		updateCrosshairAppearance()
 	end)
 
@@ -3668,15 +3387,42 @@ end)() -- End Main Tab Scope 2
 		setChVisual(crosshairEnabled)
 		if crosshairContainer then
 			crosshairContainer.Visible = crosshairEnabled
-			if crosshairEnabled then
-				local mousePos = UserInputService:GetMouseLocation()
-				crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
-			else
-				if crosshairRotator then crosshairRotator.Rotation = 0 end
+			if not crosshairEnabled and crosshairRotator then
+				crosshairRotator.Rotation = 0
 			end
 		end
-		if crosshairEnabled and not isOpen then
-			UserInputService.MouseIconEnabled = false
+
+		pcall(function()
+			local tg = playerGui and playerGui:FindFirstChild("TouchGui")
+			local tcf = tg and tg:FindFirstChild("TouchControlFrame")
+			local sl = tcf and (tcf:FindFirstChild("ShiftLock") or tcf:FindFirstChild("ShiftLockButton"))
+			if sl then
+				sl.Visible = true
+			end
+		end)
+
+		if crosshairEnabled then
+			if isShiftLocked() then
+				if crosshairContainer then
+					crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+				end
+				if not isOpen then
+					UserInputService.MouseIconEnabled = false
+					if UserInputService.MouseIcon ~= "" then
+						UserInputService.MouseIcon = ""
+					end
+				end
+			else
+				if crosshairContainer then
+					local mousePos = UserInputService:GetMouseLocation()
+					if mousePos and mousePos.X > 0 and mousePos.Y > 0 then
+						crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
+					else
+						crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+					end
+				end
+				UserInputService.MouseIconEnabled = true
+			end
 		else
 			UserInputService.MouseIconEnabled = true
 		end
@@ -3750,6 +3496,11 @@ end)() -- End Main Tab Scope 2
 	sbToggleBtn.MouseButton1Click:Connect(function()
 		spinBotEnabled = not spinBotEnabled
 		setSbVisual(spinBotEnabled)
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum and not spinBotEnabled then
+			hum.AutoRotate = true
+		end
 	end)
 
 end)() -- End Main Tab Scope 3
@@ -4204,10 +3955,26 @@ end)() -- End MM2 Tab Scope
 	-- 1. Auto Block (Otomatik Blok)
 	local abCard, abToggleBtn, setAbVisual = createModuleCard(tsbContent, "Auto Block (Otomatik Blok)")
 	local abGear = createGearButton(abCard)
-	local abPanel = createSettingsPanel(tsbContent, 46)
+	local abPanel = createSettingsPanel(tsbContent, 210)
 
-	addStepperRow(abPanel, "Algılama Menzili (Studs)", autoBlockRange, 5, 10, 60, function(newVal)
-		autoBlockRange = newVal
+	addStepperRow(abPanel, "Algılama Menzili (Studs)", tsbSettings.Range, 5, 5, 60, function(newVal)
+		tsbSettings.Range = newVal
+	end)
+
+	addStepperRow(abPanel, "Blok Gecikmesi (ms)", math.floor(tsbSettings.Delay * 1000), 25, 0, 500, function(newVal)
+		tsbSettings.Delay = newVal / 1000
+	end)
+
+	addStepperRow(abPanel, "Görüş Açısı (FOV)", tsbSettings.Fov, 15, 30, 360, function(newVal)
+		tsbSettings.Fov = newVal
+	end)
+
+	addSubToggle(abPanel, "Sadece Karşımdakileri Koru (Facing)", tsbSettings.Facing, function(s)
+		tsbSettings.Facing = s
+	end)
+
+	addSubToggle(abPanel, "Saldırana Dön (Aim Helper)", tsbSettings.Aimhelper, function(s)
+		tsbSettings.Aimhelper = s
 	end)
 
 	abGear.MouseButton1Click:Connect(function()
@@ -4217,54 +3984,8 @@ end)() -- End MM2 Tab Scope
 	abToggleBtn.MouseButton1Click:Connect(function()
 		autoBlockEnabled = not autoBlockEnabled
 		setAbVisual(autoBlockEnabled)
-		if not autoBlockEnabled and isBlocking then
-			setBlockState(false)
-		end
 	end)
 end)() -- End TSB Tab Scope
-
--- =========================================================================
--- FORSAKEN SEKMESİ MODÜLLERİ (AUTO GENERATOR & SKILLCHECK & ESP)
--- =========================================================================
-;(function() -- Forsaken Tab Scope (Luau 200 Register Limit Protection)
-
-	-- 1. Auto Generator (Otomatik Jeneratör Tamir)
-	local agCard, agToggleBtn, setAgVisual = createModuleCard(forsakenContent, "Auto Generator (Jeneratör)")
-	local agGear = createGearButton(agCard)
-	local agPanel = createSettingsPanel(forsakenContent, 90)
-
-	addStepperRow(agPanel, "Tamir Hızı (Anti-Cheat Güvenli)", forsakenGenSpeed, 5, 10, 80, function(newVal)
-		forsakenGenSpeed = newVal
-	end)
-
-	addSubToggle(agPanel, "Otomatik QTE / SkillCheck", forsakenAutoSkillCheck, function(s)
-		forsakenAutoSkillCheck = s
-	end)
-
-	agGear.MouseButton1Click:Connect(function()
-		agPanel.Visible = not agPanel.Visible
-	end)
-
-	agToggleBtn.MouseButton1Click:Connect(function()
-		forsakenAutoGenEnabled = not forsakenAutoGenEnabled
-		setAgVisual(forsakenAutoGenEnabled)
-		if not forsakenAutoGenEnabled then
-			pcall(function()
-				if vimService then vimService:SendKeyEvent(false, Enum.KeyCode.E, false, game) end
-				if typeof(keyrelease) == "function" then keyrelease(0x45) end
-			end)
-		end
-	end)
-
-	-- 2. Jeneratör ESP
-	local geCard, geToggleBtn, setGeVisual = createModuleCard(forsakenContent, "Jeneratör ESP (Konumlar)")
-	geToggleBtn.MouseButton1Click:Connect(function()
-		forsakenGenEsp = not forsakenGenEsp
-		setGeVisual(forsakenGenEsp)
-		updateGeneratorESP()
-	end)
-
-end)() -- End Forsaken Tab Scope
 
 
 -- =========================================================================
@@ -4634,7 +4355,6 @@ toggleGUI = function()
 		mainContent.Visible = false
 		mm2Content.Visible = false
 		tsbContent.Visible = false
-		forsakenContent.Visible = false
 		local closeTween = TweenService:Create(mainFrame, closeTweenInfo, {
 			Size = CLOSE_SIZE,
 			BackgroundTransparency = 1
@@ -4652,8 +4372,10 @@ toggleGUI = function()
 			mainFrame.Visible = false
 			isOpen = false
 			isTweening = false
-			if crosshairEnabled then
+			if crosshairEnabled and isShiftLocked() then
 				UserInputService.MouseIconEnabled = false
+			else
+				UserInputService.MouseIconEnabled = true
 			end
 		end)
 		task.delay(0.3, function()
@@ -4661,8 +4383,10 @@ toggleGUI = function()
 				mainFrame.Visible = false
 				isOpen = false
 				isTweening = false
-				if crosshairEnabled then
+				if crosshairEnabled and isShiftLocked() then
 					UserInputService.MouseIconEnabled = false
+				else
+					UserInputService.MouseIconEnabled = true
 				end
 			end
 		end)
@@ -4692,7 +4416,6 @@ toggleGUI = function()
 			mainContent.Visible = (currentTab == "MAIN")
 			mm2Content.Visible = (currentTab == "MM2")
 			tsbContent.Visible = (currentTab == "TSB")
-			forsakenContent.Visible = (currentTab == "FORSAKEN")
 			isOpen = true
 			isTweening = false
 		end)
@@ -4701,8 +4424,7 @@ toggleGUI = function()
 				mainContent.Visible = (currentTab == "MAIN")
 				mm2Content.Visible = (currentTab == "MM2")
 				tsbContent.Visible = (currentTab == "TSB")
-				forsakenContent.Visible = (currentTab == "FORSAKEN")
-				isOpen = true
+					isOpen = true
 				isTweening = false
 			end
 		end)
@@ -4794,9 +4516,9 @@ end)()
 -- Girdi Dinleyicisi
 -- ----------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
+	if UserInputService:GetFocusedTextBox() then return end
 
-	if input.KeyCode == Enum.KeyCode.G then
+	if input.KeyCode == Enum.KeyCode.G or input.KeyCode == Enum.KeyCode.RightShift then
 		toggleGUI()
 		return
 	end
@@ -4807,13 +4529,29 @@ end)
 -- ----------------------------------------------------
 RunService.RenderStepped:Connect(function(deltaTime)
 	if crosshairEnabled and crosshairContainer then
-		if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-			local vp = camera and camera.ViewportSize or Vector2.new(800, 500)
-			crosshairContainer.Position = UDim2.new(0, vp.X * 0.5, 0, vp.Y * 0.5)
+		local shiftLocked = isShiftLocked()
+		if shiftLocked then
+			crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+			if not isOpen then
+				if UserInputService.MouseIconEnabled then
+					UserInputService.MouseIconEnabled = false
+				end
+				if UserInputService.MouseIcon ~= "" then
+					UserInputService.MouseIcon = ""
+				end
+			end
 		else
 			local mousePos = UserInputService:GetMouseLocation()
-			crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
+			if mousePos and mousePos.X > 0 and mousePos.Y > 0 then
+				crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
+			else
+				crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+			end
+			if not isOpen and not UserInputService.MouseIconEnabled then
+				UserInputService.MouseIconEnabled = true
+			end
 		end
+
 		if spinEnabled and crosshairRotator then
 			crosshairRotator.Rotation = (crosshairRotator.Rotation + (spinSpeed * deltaTime)) % 360
 		end
@@ -4902,11 +4640,20 @@ RunService.Heartbeat:Connect(function(deltaTime)
 		local char = player.Character
 		if char then
 			local root = char:FindFirstChild("HumanoidRootPart")
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum and hum.AutoRotate then
+				hum.AutoRotate = false
+			end
 			if root then
-				currentSpinAngle = (currentSpinAngle + (spinBotSpeed * 60 * deltaTime)) % 360
-				local pos = root.Position
-				root.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(currentSpinAngle), 0)
-				root.AssemblyAngularVelocity = Vector3.zero
+				if isShooting and currentAimTorsoPos then
+					root.CFrame = CFrame.new(root.Position, Vector3.new(currentAimTorsoPos.X, root.Position.Y, currentAimTorsoPos.Z))
+					root.AssemblyAngularVelocity = Vector3.zero
+				elseif not isShooting then
+					currentSpinAngle = (currentSpinAngle + (spinBotSpeed * 60 * deltaTime)) % 360
+					local pos = root.Position
+					root.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(currentSpinAngle), 0)
+					root.AssemblyAngularVelocity = Vector3.zero
+				end
 			end
 		end
 	end
