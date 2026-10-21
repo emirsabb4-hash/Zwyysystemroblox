@@ -443,6 +443,26 @@ local function getNeonColors()
 	return coreColor, baseColor, glowAlpha, glowThickness
 end
 
+local function hideNativeShiftLockCursor()
+	pcall(function()
+		for _, gui in ipairs(playerGui:GetChildren()) do
+			if gui:IsA("ScreenGui") and (gui.Name:lower():find("mouselock") or gui.Name:lower():find("shiftlock")) then
+				local label = gui:FindFirstChildWhichIsA("ImageLabel", true)
+				if label and label.Visible then
+					label.Visible = false
+				end
+			end
+		end
+		local tg = playerGui:FindFirstChild("TouchGui")
+		if tg then
+			local label = tg:FindFirstChild("MouseLockLabel", true)
+			if label and label.Visible then
+				label.Visible = false
+			end
+		end
+	end)
+end
+
 local function isShiftLocked()
 	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
 		return true
@@ -453,9 +473,20 @@ local function isShiftLocked()
 		local tg = playerGui and playerGui:FindFirstChild("TouchGui")
 		local tcf = tg and tg:FindFirstChild("TouchControlFrame")
 		local sl = tcf and (tcf:FindFirstChild("ShiftLock") or tcf:FindFirstChild("ShiftLockButton"))
+		if not sl and playerGui then
+			for _, g in ipairs(playerGui:GetChildren()) do
+				if g:IsA("ScreenGui") then
+					local btn = g:FindFirstChild("ShiftLock", true) or g:FindFirstChild("ShiftLockButton", true)
+					if btn and btn:IsA("ImageButton") then
+						sl = btn
+						break
+					end
+				end
+			end
+		end
 		if sl and sl:IsA("ImageButton") then
 			local img = tostring(sl.Image):lower()
-			if (img:find("on") or img:find("active") or img:find("enabled")) and not (img:find("off") or img:find("disabled")) then
+			if (img:find("on") or img:find("active") or img:find("selected") or img:find("enabled")) and not (img:find("off") or img:find("disabled")) then
 				locked = true
 			end
 		end
@@ -3278,13 +3309,12 @@ end)() -- End Main Tab Scope 2
 		setChVisual(crosshairEnabled)
 
 		if crosshairEnabled then
-			if isShiftLocked() then
-				if crosshairContainer then
-					crosshairContainer.Visible = false
-				end
-			else
-				if crosshairContainer then
-					crosshairContainer.Visible = true
+			if crosshairContainer then
+				crosshairContainer.Visible = true
+				if isShiftLocked() then
+					crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+					hideNativeShiftLockCursor()
+				else
 					local mousePos = UserInputService:GetMouseLocation()
 					if mousePos and mousePos.X > 0 and mousePos.Y > 0 then
 						crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
@@ -3292,9 +3322,9 @@ end)() -- End Main Tab Scope 2
 						crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
 					end
 				end
-				if not isOpen then
-					UserInputService.MouseIconEnabled = false
-				end
+			end
+			if not isOpen then
+				UserInputService.MouseIconEnabled = false
 			end
 		else
 			if crosshairContainer then
@@ -4252,9 +4282,7 @@ toggleGUI = function()
 			isOpen = false
 			isTweening = false
 			if crosshairEnabled then
-				if not isShiftLocked() then
-					UserInputService.MouseIconEnabled = false
-				end
+				UserInputService.MouseIconEnabled = false
 			else
 				UserInputService.MouseIconEnabled = true
 			end
@@ -4265,9 +4293,7 @@ toggleGUI = function()
 				isOpen = false
 				isTweening = false
 				if crosshairEnabled then
-				if not isShiftLocked() then
-					UserInputService.MouseIconEnabled = false
-				end
+				UserInputService.MouseIconEnabled = false
 			else
 				UserInputService.MouseIconEnabled = true
 			end
@@ -4412,30 +4438,33 @@ end)
 -- ----------------------------------------------------
 RunService.RenderStepped:Connect(function(deltaTime)
 	if crosshairEnabled and crosshairContainer then
+		crosshairContainer.Visible = true
 		local shiftLocked = isShiftLocked()
+
 		if shiftLocked then
-			-- ShiftLock açıkken crosshair kendini görünmez yapar
-			crosshairContainer.Visible = false
+			-- ShiftLock acikken: Crosshair ekranin tam ortasina (0.5, 0.5) yerlesip ShiftLock nisangahi olur
+			crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+			hideNativeShiftLockCursor()
 		else
-			-- ShiftLock kapalıyken crosshair görünür ve farenin ucunu takip eder
-			crosshairContainer.Visible = true
+			-- ShiftLock kapaliyken: Crosshair farenin ucunu takip eder
 			local mousePos = UserInputService:GetMouseLocation()
 			if mousePos and mousePos.X > 0 and mousePos.Y > 0 then
 				crosshairContainer.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y)
 			else
 				crosshairContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
 			end
+		end
 
-			-- Crosshair açıkken fare imlecini gizle (menü kapalıyken)
-			if not isOpen and UserInputService.MouseIconEnabled then
-				UserInputService.MouseIconEnabled = false
-			end
+		-- Crosshair acikken menu kapaliysa fare ok imlecini gizle (boylece imlec yerine crosshair gorunur)
+		if not isOpen and UserInputService.MouseIconEnabled then
+			UserInputService.MouseIconEnabled = false
 		end
 
 		if spinEnabled and crosshairRotator then
 			crosshairRotator.Rotation = (crosshairRotator.Rotation + (spinSpeed * deltaTime)) % 360
 		end
 	end
+
 	if Workspace.CurrentCamera then
 		camera = Workspace.CurrentCamera
 	end
