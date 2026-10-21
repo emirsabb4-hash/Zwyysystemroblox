@@ -1834,8 +1834,8 @@ end
 -- Dişli Çark Çizici
 -- ----------------------------------------------------
 
-local TARGET_SIZE = UDim2.new(0, 480, 0, 290)
-local CLOSE_SIZE = UDim2.new(0, 440, 0, 260)
+local TARGET_SIZE = UDim2.new(0, 580, 0, 430)
+local CLOSE_SIZE = UDim2.new(0, 540, 0, 390)
 local mainFrame
 local topBar
 local title
@@ -1860,19 +1860,19 @@ local addColorPaletteRow
 
 ;(function() -- UI Modules Scope (Luau 200 Register Limit Protection)
 -- =========================================================================
--- OBSIDIAN LUXURY MINIMALIST CLICKGUI (V3 PURE BLACK MOBILE EDITION)
+-- OBSIDIAN LUXURY MINIMALIST CLICKGUI (V3 PURE BLACK PC EDITION)
 -- ZERO EMOJIS - STRICT PROCEDURAL VECTOR GEOMETRY - SENIOR SYSTEM ARCHITECTURE
 -- =========================================================================
 
 -- ----------------------------------------------------
--- Arayüz Konfigürasyonu & Pencere Boyutları (Mobil Uyumlu)
+-- Arayüz Konfigürasyonu & Pencere Boyutları (PC Masaüstü Uyumlu)
 -- ----------------------------------------------------
 
 -- Ana Taşıyıcı Pencere (Pitch Black / Obsidian Matte Monolith)
 mainFrame = Instance.new("Frame")
 mainFrame.Name = "ZwyyObsidianMain"
 mainFrame.Size = TARGET_SIZE
-mainFrame.Position = UDim2.new(0.5, 0, 0.54, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 mainFrame.BorderSizePixel = 0
@@ -1881,24 +1881,10 @@ mainFrame.Visible = true
 mainFrame.ZIndex = 10
 mainFrame.Parent = menuGui
 
--- Mobil Ekranlara Tam Sığdırma Ölçekleyicisi (Auto Responsive UIScale)
+-- PC Masaüstü Net 1:1 Ölçekleyici (Aşırı büyümeyi engeller, ideal boyutta tutar)
 local uiScale = Instance.new("UIScale")
+uiScale.Scale = 1
 uiScale.Parent = mainFrame
-
-local function updateMobileScale()
-	local cam = Workspace.CurrentCamera
-	if not cam then return end
-	local vp = cam.ViewportSize
-	if vp.X > 0 and vp.Y > 0 then
-		local scaleX = (vp.X - 24) / 480
-		local scaleY = (vp.Y - 64) / 290
-		uiScale.Scale = math.clamp(math.min(scaleX, scaleY, 1), 0.55, 1)
-	end
-end
-updateMobileScale()
-if Workspace.CurrentCamera then
-	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMobileScale)
-end
 
 local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 8)
@@ -1958,7 +1944,7 @@ headerDivider.Parent = topBar
 
 -- Logo & Marka Konteyneri
 local brandContainer = Instance.new("Frame")
-brandContainer.Size = UDim2.new(0, 95, 1, 0)
+brandContainer.Size = UDim2.new(0, 110, 1, 0)
 brandContainer.Position = UDim2.new(0, 12, 0, 0)
 brandContainer.BackgroundTransparency = 1
 brandContainer.ZIndex = 6
@@ -1991,12 +1977,12 @@ title.ZIndex = 7
 title.Parent = brandContainer
 
 local subTitle = Instance.new("TextLabel")
-subTitle.Text = "MOBİL"
+subTitle.Text = "PC V3"
 subTitle.Font = Enum.Font.Gotham
 subTitle.TextSize = 9
 subTitle.TextColor3 = Color3.fromRGB(110, 110, 110)
 subTitle.TextXAlignment = Enum.TextXAlignment.Left
-subTitle.Size = UDim2.new(0, 40, 1, 0)
+subTitle.Size = UDim2.new(0, 46, 1, 0)
 subTitle.Position = UDim2.new(0, 56, 0, 0)
 subTitle.BackgroundTransparency = 1
 subTitle.ZIndex = 7
@@ -2004,8 +1990,8 @@ subTitle.Parent = brandContainer
 
 -- Sekme Değiştirici Konteyner (Tab Selector - 3 Sekme: MAIN, MM2, TSB)
 local tabNavContainer = Instance.new("Frame")
-tabNavContainer.Size = UDim2.new(0, 276, 0, 28)
-tabNavContainer.Position = UDim2.new(0.5, -124, 0.5, -14)
+tabNavContainer.Size = UDim2.new(0, 300, 0, 28)
+tabNavContainer.Position = UDim2.new(0.5, -140, 0.5, -14)
 tabNavContainer.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 tabNavContainer.BorderSizePixel = 0
 tabNavContainer.ZIndex = 6
@@ -3162,7 +3148,7 @@ end)() -- End Main Tab Scope 1
 	tfTitle.Font = Enum.Font.GothamMedium
 	tfTitle.TextSize = 13
 	tfTitle.TextColor3 = Color3.fromRGB(235, 235, 235)
-	tfTitle.Size = UDim2.new(1, -220, 1, 0)
+	tfTitle.Size = UDim2.new(1, -280, 1, 0)
 	tfTitle.Position = UDim2.new(0, 14, 0, 0)
 	tfTitle.TextXAlignment = Enum.TextXAlignment.Left
 	tfTitle.BackgroundTransparency = 1
@@ -3186,7 +3172,7 @@ end)() -- End Main Tab Scope 1
 	tfExecBtn.Font = Enum.Font.GothamBold
 	tfExecBtn.TextSize = 11
 	tfExecBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
-	tfExecBtn.Size = UDim2.new(0, 52, 0, 24)
+	tfExecBtn.Size = UDim2.new(0, 56, 0, 24)
 	tfExecBtn.Position = UDim2.new(1, -84, 0.5, -12)
 	tfExecBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 	tfExecBtn.BorderSizePixel = 0
@@ -3276,7 +3262,7 @@ end)() -- End Main Tab Scope 1
 		if tfPanel.Visible then populatePlayerList() end
 	end)
 
-	tfExecBtn.MouseButton1Click:Connect(function()
+	local function runTargetFling()
 		if not selectedFlingPlayer then
 			tfStatus.Text = "Kişi Seçilmedi"
 			return
@@ -3287,7 +3273,9 @@ end)() -- End Main Tab Scope 1
 			tfExecBtn.Text = "FLING"
 			tfExecBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
 		end)
-	end)
+	end
+
+	tfExecBtn.MouseButton1Click:Connect(runTargetFling)
 
 end)() -- End Main Tab Scope 2
 
@@ -3561,98 +3549,52 @@ end)() -- End Main Tab Scope 4
 		updateAllESP()
 	end)
 
-	-- Mobil Sürüklenebilir & Tek Basışta Çalışan Yüzer Buton Fabrikası
-	-- (İçi boş, kenarı siyah çizgili, yazısı beyaz, bas-çek yapmadan basılı tutup sürüklenebilir)
-	local function createMobileFloatingButton(btnText, btnSize, btnPos, onSingleTap)
-		local fBtn = Instance.new("TextButton")
-		fBtn.Name = "ZwyyMobileBtn_" .. btnText
-		fBtn.Text = btnText
-		fBtn.Font = Enum.Font.GothamBold
-		fBtn.TextSize = 12
-		fBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		fBtn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-		fBtn.TextStrokeTransparency = 0.45
-		fBtn.Size = btnSize
-		fBtn.Position = btnPos
-		fBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-		fBtn.BackgroundTransparency = 1
-		fBtn.BorderSizePixel = 0
-		fBtn.AutoButtonColor = false
-		fBtn.Active = true
-		fBtn.Visible = false
-		fBtn.ZIndex = 60
-		fBtn.Parent = menuGui
+	-- PC Tuş Atama Yardımcısı (Tıklayınca [...] bekler, tuşa basınca atar, ESC ile sıfırlar)
+	local function attachKeybindButton(btn, stroke, onTrigger)
+		local isWaiting = false
+		local boundInput = nil
 
-		local fCorner = Instance.new("UICorner")
-		fCorner.CornerRadius = UDim.new(0, 8)
-		fCorner.Parent = fBtn
-
-		local fStroke = Instance.new("UIStroke")
-		fStroke.Color = Color3.fromRGB(0, 0, 0)
-		fStroke.Thickness = 2.2
-		fStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		fStroke.Parent = fBtn
-
-		local activeInput = nil
-		local pressStart = nil
-		local startButtonPos = nil
-		local hasMoved = false
-
-		fBtn.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-				activeInput = input
-				pressStart = input.Position
-				startButtonPos = fBtn.Position
-				hasMoved = false
-			end
+		btn.Text = "[Tuş Yok]"
+		btn.MouseButton1Click:Connect(function()
+			isWaiting = true
+			btn.Text = "[...]"
+			btn.TextColor3 = Color3.fromRGB(0, 255, 140)
+			if stroke then stroke.Color = Color3.fromRGB(0, 255, 140) end
 		end)
 
-		UserInputService.InputChanged:Connect(function(input)
-			if activeInput and (input == activeInput or (activeInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseMovement)) then
-				local delta = input.Position - pressStart
-				if delta.Magnitude > 6 then
-					hasMoved = true
+		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if isWaiting then
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then return end
+				if input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.Backspace then
+					boundInput = nil
+					isWaiting = false
+					btn.Text = "[Tuş Yok]"
+					btn.TextColor3 = Color3.fromRGB(160, 160, 160)
+					if stroke then stroke.Color = Color3.fromRGB(30, 30, 30) end
+					return
 				end
-				if hasMoved and startButtonPos then
-					fBtn.Position = UDim2.new(
-						startButtonPos.X.Scale,
-						startButtonPos.X.Offset + delta.X,
-						startButtonPos.Y.Scale,
-						startButtonPos.Y.Offset + delta.Y
-					)
+				if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode ~= Enum.KeyCode.RightShift then
+					boundInput = input.KeyCode
+					isWaiting = false
+					btn.Text = "[" .. input.KeyCode.Name .. "]"
+					btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+					if stroke then stroke.Color = Color3.fromRGB(60, 60, 60) end
+					return
+				elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+					boundInput = input.UserInputType
+					isWaiting = false
+					btn.Text = "[" .. (input.UserInputType == Enum.UserInputType.MouseButton2 and "MB2" or "MB3") .. "]"
+					btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+					if stroke then stroke.Color = Color3.fromRGB(60, 60, 60) end
+					return
+				end
+			elseif not gameProcessed and boundInput then
+				if input.KeyCode == boundInput or input.UserInputType == boundInput then
+					task.spawn(onTrigger)
 				end
 			end
 		end)
-
-		UserInputService.InputEnded:Connect(function(input)
-			if activeInput and (input == activeInput or (activeInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseButton1)) then
-				local dragged = hasMoved
-				activeInput = nil
-				pressStart = nil
-				startButtonPos = nil
-				hasMoved = false
-				if not dragged and onSingleTap then
-					task.spawn(onSingleTap)
-				end
-			end
-		end)
-
-		return fBtn
 	end
-
-	local dropGunMobileBtn = createMobileFloatingButton(
-		"DROP GUN TP",
-		UDim2.new(0, 118, 0, 38),
-		UDim2.new(0.84, 0, 0.38, 0),
-		triggerTpGun
-	)
-
-	local shootMobileBtn = createMobileFloatingButton(
-		"SHOOT",
-		UDim2.new(0, 106, 0, 38),
-		UDim2.new(0.84, 0, 0.52, 0),
-		triggerShootMurderer
-	)
 
 	-- 2. TP Drop Gun (Tek Seferlik)
 	local tpCard = Instance.new("Frame")
@@ -3701,7 +3643,7 @@ end)() -- End Main Tab Scope 4
 	local tecStroke = Instance.new("UIStroke") tecStroke.Color = Color3.fromRGB(36, 36, 36) tecStroke.Thickness = 1 tecStroke.Parent = tpExecBtn
 
 	tpKeybindBtn = Instance.new("TextButton")
-	tpKeybindBtn.Text = "BUTON: KAPALI"
+	tpKeybindBtn.Text = "[Tuş Yok]"
 	tpKeybindBtn.Font = Enum.Font.GothamBold
 	tpKeybindBtn.TextSize = 10
 	tpKeybindBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
@@ -3719,18 +3661,7 @@ end)() -- End Main Tab Scope 4
 		triggerTpGun()
 	end)
 
-	tpKeybindBtn.MouseButton1Click:Connect(function()
-		dropGunMobileBtn.Visible = not dropGunMobileBtn.Visible
-		if dropGunMobileBtn.Visible then
-			tpKeybindBtn.Text = "BUTON: AÇIK"
-			tpKeybindBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
-			tkStroke.Color = Color3.fromRGB(0, 255, 140)
-		else
-			tpKeybindBtn.Text = "BUTON: KAPALI"
-			tpKeybindBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
-			tkStroke.Color = Color3.fromRGB(30, 30, 30)
-		end
-	end)
+	attachKeybindButton(tpKeybindBtn, tkStroke, triggerTpGun)
 
 	-- 3. Shoot (Silent Aim Katil)
 	local shCard = Instance.new("Frame")
@@ -3805,7 +3736,7 @@ end)() -- End Main Tab Scope 4
 	local secStroke = Instance.new("UIStroke") secStroke.Color = Color3.fromRGB(36, 36, 36) secStroke.Thickness = 1 secStroke.Parent = shExecBtn
 
 	shootKeybindBtn = Instance.new("TextButton")
-	shootKeybindBtn.Text = "BUTON: KAPALI"
+	shootKeybindBtn.Text = "[Tuş Yok]"
 	shootKeybindBtn.Font = Enum.Font.GothamBold
 	shootKeybindBtn.TextSize = 10
 	shootKeybindBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
@@ -3823,18 +3754,7 @@ end)() -- End Main Tab Scope 4
 		triggerShootMurderer()
 	end)
 
-	shootKeybindBtn.MouseButton1Click:Connect(function()
-		shootMobileBtn.Visible = not shootMobileBtn.Visible
-		if shootMobileBtn.Visible then
-			shootKeybindBtn.Text = "BUTON: AÇIK"
-			shootKeybindBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
-			skStroke.Color = Color3.fromRGB(0, 255, 140)
-		else
-			shootKeybindBtn.Text = "BUTON: KAPALI"
-			shootKeybindBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
-			skStroke.Color = Color3.fromRGB(30, 30, 30)
-		end
-	end)
+	attachKeybindButton(shootKeybindBtn, skStroke, triggerShootMurderer)
 
 	-- 4. Fling Sheriff (Şerifi Uçur)
 	local fsCard = Instance.new("Frame")
@@ -4163,184 +4083,7 @@ end)() -- End TSB Tab Scope
 end)() -- End Vector Extensions & Toast Scope
 
 -- ----------------------------------------------------
--- MATEMATİKSEL VEKTÖR VE SİSTEM MİMARİSİ REFERANS ÇİZELGESİ
--- ----------------------------------------------------
--- [OBSIDIAN-GEO-SPEC-001] Geometric vector node matrix index: 1 | Normalized theta: 0.0000 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-002] Geometric vector node matrix index: 2 | Normalized theta: 0.6180 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-003] Geometric vector node matrix index: 3 | Normalized theta: 0.2360 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-004] Geometric vector node matrix index: 4 | Normalized theta: 0.8540 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-005] Geometric vector node matrix index: 5 | Normalized theta: 0.4720 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-006] Geometric vector node matrix index: 6 | Normalized theta: 0.0900 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-007] Geometric vector node matrix index: 7 | Normalized theta: 0.7080 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-008] Geometric vector node matrix index: 8 | Normalized theta: 0.3260 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-009] Geometric vector node matrix index: 9 | Normalized theta: 0.9440 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-010] Geometric vector node matrix index: 10 | Normalized theta: 0.5620 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-011] Geometric vector node matrix index: 11 | Normalized theta: 0.1800 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-012] Geometric vector node matrix index: 12 | Normalized theta: 0.7980 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-013] Geometric vector node matrix index: 13 | Normalized theta: 0.4160 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-014] Geometric vector node matrix index: 14 | Normalized theta: 0.0340 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-015] Geometric vector node matrix index: 15 | Normalized theta: 0.6520 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-016] Geometric vector node matrix index: 16 | Normalized theta: 0.2700 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-017] Geometric vector node matrix index: 17 | Normalized theta: 0.8880 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-018] Geometric vector node matrix index: 18 | Normalized theta: 0.5060 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-019] Geometric vector node matrix index: 19 | Normalized theta: 0.1240 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-020] Geometric vector node matrix index: 20 | Normalized theta: 0.7420 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-021] Geometric vector node matrix index: 21 | Normalized theta: 0.3600 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-022] Geometric vector node matrix index: 22 | Normalized theta: 0.9780 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-023] Geometric vector node matrix index: 23 | Normalized theta: 0.5960 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-024] Geometric vector node matrix index: 24 | Normalized theta: 0.2140 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-025] Geometric vector node matrix index: 25 | Normalized theta: 0.8320 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-026] Geometric vector node matrix index: 26 | Normalized theta: 0.4500 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-027] Geometric vector node matrix index: 27 | Normalized theta: 0.0680 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-028] Geometric vector node matrix index: 28 | Normalized theta: 0.6860 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-029] Geometric vector node matrix index: 29 | Normalized theta: 0.3040 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-030] Geometric vector node matrix index: 30 | Normalized theta: 0.9220 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-031] Geometric vector node matrix index: 31 | Normalized theta: 0.5400 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-032] Geometric vector node matrix index: 32 | Normalized theta: 0.1580 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-033] Geometric vector node matrix index: 33 | Normalized theta: 0.7760 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-034] Geometric vector node matrix index: 34 | Normalized theta: 0.3940 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-035] Geometric vector node matrix index: 35 | Normalized theta: 0.0120 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-036] Geometric vector node matrix index: 36 | Normalized theta: 0.6300 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-037] Geometric vector node matrix index: 37 | Normalized theta: 0.2480 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-038] Geometric vector node matrix index: 38 | Normalized theta: 0.8660 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-039] Geometric vector node matrix index: 39 | Normalized theta: 0.4840 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-040] Geometric vector node matrix index: 40 | Normalized theta: 0.1020 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-041] Geometric vector node matrix index: 41 | Normalized theta: 0.7200 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-042] Geometric vector node matrix index: 42 | Normalized theta: 0.3380 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-043] Geometric vector node matrix index: 43 | Normalized theta: 0.9560 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-044] Geometric vector node matrix index: 44 | Normalized theta: 0.5740 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-045] Geometric vector node matrix index: 45 | Normalized theta: 0.1920 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-046] Geometric vector node matrix index: 46 | Normalized theta: 0.8100 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-047] Geometric vector node matrix index: 47 | Normalized theta: 0.4280 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-048] Geometric vector node matrix index: 48 | Normalized theta: 0.0460 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-049] Geometric vector node matrix index: 49 | Normalized theta: 0.6640 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-050] Geometric vector node matrix index: 50 | Normalized theta: 0.2820 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-051] Geometric vector node matrix index: 51 | Normalized theta: 0.9000 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-052] Geometric vector node matrix index: 52 | Normalized theta: 0.5180 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-053] Geometric vector node matrix index: 53 | Normalized theta: 0.1360 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-054] Geometric vector node matrix index: 54 | Normalized theta: 0.7540 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-055] Geometric vector node matrix index: 55 | Normalized theta: 0.3720 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-056] Geometric vector node matrix index: 56 | Normalized theta: 0.9900 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-057] Geometric vector node matrix index: 57 | Normalized theta: 0.6080 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-058] Geometric vector node matrix index: 58 | Normalized theta: 0.2260 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-059] Geometric vector node matrix index: 59 | Normalized theta: 0.8440 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-060] Geometric vector node matrix index: 60 | Normalized theta: 0.4620 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-061] Geometric vector node matrix index: 61 | Normalized theta: 0.0800 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-062] Geometric vector node matrix index: 62 | Normalized theta: 0.6980 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-063] Geometric vector node matrix index: 63 | Normalized theta: 0.3160 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-064] Geometric vector node matrix index: 64 | Normalized theta: 0.9340 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-065] Geometric vector node matrix index: 65 | Normalized theta: 0.5520 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-066] Geometric vector node matrix index: 66 | Normalized theta: 0.1700 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-067] Geometric vector node matrix index: 67 | Normalized theta: 0.7880 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-068] Geometric vector node matrix index: 68 | Normalized theta: 0.4060 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-069] Geometric vector node matrix index: 69 | Normalized theta: 0.0240 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-070] Geometric vector node matrix index: 70 | Normalized theta: 0.6420 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-071] Geometric vector node matrix index: 71 | Normalized theta: 0.2600 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-072] Geometric vector node matrix index: 72 | Normalized theta: 0.8780 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-073] Geometric vector node matrix index: 73 | Normalized theta: 0.4960 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-074] Geometric vector node matrix index: 74 | Normalized theta: 0.1140 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-075] Geometric vector node matrix index: 75 | Normalized theta: 0.7320 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-076] Geometric vector node matrix index: 76 | Normalized theta: 0.3500 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-077] Geometric vector node matrix index: 77 | Normalized theta: 0.9680 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-078] Geometric vector node matrix index: 78 | Normalized theta: 0.5860 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-079] Geometric vector node matrix index: 79 | Normalized theta: 0.2040 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-080] Geometric vector node matrix index: 80 | Normalized theta: 0.8220 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-081] Geometric vector node matrix index: 81 | Normalized theta: 0.4400 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-082] Geometric vector node matrix index: 82 | Normalized theta: 0.0580 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-083] Geometric vector node matrix index: 83 | Normalized theta: 0.6760 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-084] Geometric vector node matrix index: 84 | Normalized theta: 0.2940 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-085] Geometric vector node matrix index: 85 | Normalized theta: 0.9120 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-086] Geometric vector node matrix index: 86 | Normalized theta: 0.5300 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-087] Geometric vector node matrix index: 87 | Normalized theta: 0.1480 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-088] Geometric vector node matrix index: 88 | Normalized theta: 0.7660 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-089] Geometric vector node matrix index: 89 | Normalized theta: 0.3840 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-090] Geometric vector node matrix index: 90 | Normalized theta: 0.0020 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-091] Geometric vector node matrix index: 91 | Normalized theta: 0.6200 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-092] Geometric vector node matrix index: 92 | Normalized theta: 0.2380 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-093] Geometric vector node matrix index: 93 | Normalized theta: 0.8560 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-094] Geometric vector node matrix index: 94 | Normalized theta: 0.4740 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-095] Geometric vector node matrix index: 95 | Normalized theta: 0.0920 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-096] Geometric vector node matrix index: 96 | Normalized theta: 0.7100 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-097] Geometric vector node matrix index: 97 | Normalized theta: 0.3280 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-098] Geometric vector node matrix index: 98 | Normalized theta: 0.9460 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-099] Geometric vector node matrix index: 99 | Normalized theta: 0.5640 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-100] Geometric vector node matrix index: 100 | Normalized theta: 0.1820 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-101] Geometric vector node matrix index: 101 | Normalized theta: 0.8000 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-102] Geometric vector node matrix index: 102 | Normalized theta: 0.4180 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-103] Geometric vector node matrix index: 103 | Normalized theta: 0.0360 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-104] Geometric vector node matrix index: 104 | Normalized theta: 0.6540 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-105] Geometric vector node matrix index: 105 | Normalized theta: 0.2720 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-106] Geometric vector node matrix index: 106 | Normalized theta: 0.8900 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-107] Geometric vector node matrix index: 107 | Normalized theta: 0.5080 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-108] Geometric vector node matrix index: 108 | Normalized theta: 0.1260 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-109] Geometric vector node matrix index: 109 | Normalized theta: 0.7440 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-110] Geometric vector node matrix index: 110 | Normalized theta: 0.3620 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-111] Geometric vector node matrix index: 111 | Normalized theta: 0.9800 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-112] Geometric vector node matrix index: 112 | Normalized theta: 0.5980 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-113] Geometric vector node matrix index: 113 | Normalized theta: 0.2160 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-114] Geometric vector node matrix index: 114 | Normalized theta: 0.8340 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-115] Geometric vector node matrix index: 115 | Normalized theta: 0.4520 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-116] Geometric vector node matrix index: 116 | Normalized theta: 0.0700 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-117] Geometric vector node matrix index: 117 | Normalized theta: 0.6880 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-118] Geometric vector node matrix index: 118 | Normalized theta: 0.3060 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-119] Geometric vector node matrix index: 119 | Normalized theta: 0.9240 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-120] Geometric vector node matrix index: 120 | Normalized theta: 0.5420 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-121] Geometric vector node matrix index: 121 | Normalized theta: 0.1600 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-122] Geometric vector node matrix index: 122 | Normalized theta: 0.7780 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-123] Geometric vector node matrix index: 123 | Normalized theta: 0.3960 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-124] Geometric vector node matrix index: 124 | Normalized theta: 0.0140 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-125] Geometric vector node matrix index: 125 | Normalized theta: 0.6320 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-126] Geometric vector node matrix index: 126 | Normalized theta: 0.2500 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-127] Geometric vector node matrix index: 127 | Normalized theta: 0.8680 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-128] Geometric vector node matrix index: 128 | Normalized theta: 0.4860 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-129] Geometric vector node matrix index: 129 | Normalized theta: 0.1040 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-130] Geometric vector node matrix index: 130 | Normalized theta: 0.7220 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-131] Geometric vector node matrix index: 131 | Normalized theta: 0.3400 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-132] Geometric vector node matrix index: 132 | Normalized theta: 0.9580 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-133] Geometric vector node matrix index: 133 | Normalized theta: 0.5760 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-134] Geometric vector node matrix index: 134 | Normalized theta: 0.1940 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-135] Geometric vector node matrix index: 135 | Normalized theta: 0.8120 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-136] Geometric vector node matrix index: 136 | Normalized theta: 0.4300 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-137] Geometric vector node matrix index: 137 | Normalized theta: 0.0480 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-138] Geometric vector node matrix index: 138 | Normalized theta: 0.6660 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-139] Geometric vector node matrix index: 139 | Normalized theta: 0.2840 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-140] Geometric vector node matrix index: 140 | Normalized theta: 0.9020 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-141] Geometric vector node matrix index: 141 | Normalized theta: 0.5200 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-142] Geometric vector node matrix index: 142 | Normalized theta: 0.1380 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-143] Geometric vector node matrix index: 143 | Normalized theta: 0.7560 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-144] Geometric vector node matrix index: 144 | Normalized theta: 0.3740 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-145] Geometric vector node matrix index: 145 | Normalized theta: 0.9920 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-146] Geometric vector node matrix index: 146 | Normalized theta: 0.6100 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-147] Geometric vector node matrix index: 147 | Normalized theta: 0.2280 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-148] Geometric vector node matrix index: 148 | Normalized theta: 0.8460 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-149] Geometric vector node matrix index: 149 | Normalized theta: 0.4640 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-150] Geometric vector node matrix index: 150 | Normalized theta: 0.0820 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-151] Geometric vector node matrix index: 151 | Normalized theta: 0.7000 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-152] Geometric vector node matrix index: 152 | Normalized theta: 0.3180 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-153] Geometric vector node matrix index: 153 | Normalized theta: 0.9360 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-154] Geometric vector node matrix index: 154 | Normalized theta: 0.5540 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-155] Geometric vector node matrix index: 155 | Normalized theta: 0.1720 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-156] Geometric vector node matrix index: 156 | Normalized theta: 0.7900 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-157] Geometric vector node matrix index: 157 | Normalized theta: 0.4080 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-158] Geometric vector node matrix index: 158 | Normalized theta: 0.0260 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-159] Geometric vector node matrix index: 159 | Normalized theta: 0.6440 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-160] Geometric vector node matrix index: 160 | Normalized theta: 0.2620 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-161] Geometric vector node matrix index: 161 | Normalized theta: 0.8800 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-162] Geometric vector node matrix index: 162 | Normalized theta: 0.4980 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-163] Geometric vector node matrix index: 163 | Normalized theta: 0.1160 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-164] Geometric vector node matrix index: 164 | Normalized theta: 0.7340 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-165] Geometric vector node matrix index: 165 | Normalized theta: 0.3520 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-166] Geometric vector node matrix index: 166 | Normalized theta: 0.9700 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-167] Geometric vector node matrix index: 167 | Normalized theta: 0.5880 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-168] Geometric vector node matrix index: 168 | Normalized theta: 0.2060 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-169] Geometric vector node matrix index: 169 | Normalized theta: 0.8240 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-170] Geometric vector node matrix index: 170 | Normalized theta: 0.4420 | Pure black design system
--- [OBSIDIAN-GEO-SPEC-171] Geometric vector node matrix index: 171 | Normalized theta: 0.0600 | Pure black design system
--- ----------------------------------------------------
-
-
--- ----------------------------------------------------
--- Menü Açılış / Kapanış (OPEN Butonu & G Tuşu)
+-- Menü Açılış / Kapanış (OPEN Butonu, G Tuşu & Sağ Shift)
 -- ----------------------------------------------------
 isOpen = true
 local isTweening = false
@@ -4431,39 +4174,39 @@ toggleGUI = function()
 	end
 end
 
--- Mobil Ekranın En Orta ve Üstünde "OPEN" Butonu
+-- PC Ekranın Üst Orta Kısmında Sürüklenebilir Zarif "OPEN" Butonu
 ;(function()
-	local mobileOpenBtn = Instance.new("TextButton")
-	mobileOpenBtn.Name = "MobileOpenBtn"
-	mobileOpenBtn.Size = UDim2.new(0, 86, 0, 30)
-	mobileOpenBtn.Position = UDim2.new(0.5, 0, 0, 22)
-	mobileOpenBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-	mobileOpenBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	mobileOpenBtn.BackgroundTransparency = 1 -- İçi boş
-	mobileOpenBtn.BorderSizePixel = 0
-	mobileOpenBtn.AutoButtonColor = false
-	mobileOpenBtn.Text = "OPEN"
-	mobileOpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255) -- Beyaz yazı
-	mobileOpenBtn.Font = Enum.Font.GothamBold
-	mobileOpenBtn.TextSize = 13
-	mobileOpenBtn.ZIndex = 9500
-	mobileOpenBtn.Parent = menuGui
+	local pcOpenBtn = Instance.new("TextButton")
+	pcOpenBtn.Name = "PCOpenBtn"
+	pcOpenBtn.Size = UDim2.new(0, 86, 0, 30)
+	pcOpenBtn.Position = UDim2.new(0.5, 0, 0, 22)
+	pcOpenBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+	pcOpenBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	pcOpenBtn.BackgroundTransparency = 1 -- İçi boş
+	pcOpenBtn.BorderSizePixel = 0
+	pcOpenBtn.AutoButtonColor = false
+	pcOpenBtn.Text = "OPEN"
+	pcOpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255) -- Beyaz yazı
+	pcOpenBtn.Font = Enum.Font.GothamBold
+	pcOpenBtn.TextSize = 13
+	pcOpenBtn.ZIndex = 9500
+	pcOpenBtn.Parent = menuGui
 
 	local openCorner = Instance.new("UICorner")
 	openCorner.CornerRadius = UDim.new(0, 7)
-	openCorner.Parent = mobileOpenBtn
+	openCorner.Parent = pcOpenBtn
 
 	local openStroke = Instance.new("UIStroke")
 	openStroke.Color = Color3.fromRGB(0, 0, 0) -- Siyah kenar çizgisi
 	openStroke.Thickness = 2.2
 	openStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	openStroke.Parent = mobileOpenBtn
+	openStroke.Parent = pcOpenBtn
 
 	local openTextStroke = Instance.new("UIStroke")
 	openTextStroke.Color = Color3.fromRGB(0, 0, 0)
 	openTextStroke.Thickness = 1.4
 	openTextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-	openTextStroke.Parent = mobileOpenBtn
+	openTextStroke.Parent = pcOpenBtn
 
 	local isDraggingOpen = false
 	local hasMovedOpen = false
@@ -4471,12 +4214,12 @@ end
 	local btnStartPosOpen = nil
 	local activeOpenInput = nil
 
-	mobileOpenBtn.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+	pcOpenBtn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			isDraggingOpen = true
 			hasMovedOpen = false
 			dragStartPosOpen = input.Position
-			btnStartPosOpen = mobileOpenBtn.Position
+			btnStartPosOpen = pcOpenBtn.Position
 			activeOpenInput = input
 		end
 	end)
@@ -4489,7 +4232,7 @@ end
 				hasMovedOpen = true
 			end
 			if hasMovedOpen then
-				mobileOpenBtn.Position = UDim2.new(
+				pcOpenBtn.Position = UDim2.new(
 					btnStartPosOpen.X.Scale,
 					btnStartPosOpen.X.Offset + delta.X,
 					btnStartPosOpen.Y.Scale,
@@ -4513,7 +4256,7 @@ end
 end)()
 
 -- ----------------------------------------------------
--- Girdi Dinleyicisi
+-- Girdi Dinleyicisi (Menü Açma/Kapama: G ve Sağ Shift Tuşları)
 -- ----------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if UserInputService:GetFocusedTextBox() then return end
@@ -4704,11 +4447,11 @@ end)
 	end)
 end)()
 
--- Final Mount Assurance & Mobile Load Notification
+-- Final Mount Assurance & PC Load Notification
 mountGui(menuGui)
 mountGui(crosshairGui)
 mountGui(espDrawingGui)
-sendNotification("Zwyy Visuals V3 Mobile", "Yuklendi! Ustteki OPEN butonu ile menuyu acabilirsin!", 6)
+sendNotification("Zwyy Visuals V3 PC", "Yuklendi! G, Sag Shift veya OPEN butonu ile acabilirsin!", 6)
 if showToast then
-	showToast("ZWYY V3 MOBILE", "Basariyla Yuklendi! Ustteki OPEN butonu ile menuyu acip kapatabilirsin.", 5)
+	showToast("ZWYY V3 PC", "Yuklendi! G, Sag Shift veya OPEN butonu ile kontrol edebilirsin.", 5)
 end
