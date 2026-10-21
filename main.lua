@@ -315,6 +315,10 @@ local currentForceField = nil
 
 -- TSB (The Strongest Battlegrounds) Auto Block Ayarları
 local autoBlockEnabled = false
+-- TSB Counter ESP
+local tsbCounterEspEnabled = false
+local tsbCounterNotifyEnded = true
+local activeCounters = {}
 local tsbSettings = {
 	Range = 25,
 	Delay = 0,
@@ -811,18 +815,49 @@ local function getSheriffPlayer()
 end
 
 local function removePlayerVisuals(targetPlr)
-	if highlights[targetPlr] then highlights[targetPlr]:Destroy() highlights[targetPlr] = nil end
-	if nameLabels[targetPlr] then nameLabels[targetPlr]:Destroy() nameLabels[targetPlr] = nil end
-	if tracerLines[targetPlr] then tracerLines[targetPlr]:Destroy() tracerLines[targetPlr] = nil end
+	if highlights[targetPlr] then
+		pcall(function() highlights[targetPlr]:Destroy() end)
+		highlights[targetPlr] = nil
+	end
+	if nameLabels[targetPlr] then
+		pcall(function()
+			nameLabels[targetPlr].Visible = false
+			nameLabels[targetPlr]:Destroy()
+		end)
+		nameLabels[targetPlr] = nil
+	end
+	if tracerLines[targetPlr] then
+		pcall(function()
+			tracerLines[targetPlr].Visible = false
+			tracerLines[targetPlr]:Destroy()
+		end)
+		tracerLines[targetPlr] = nil
+	end
 end
 
 local function hookPlayerCleanup(targetPlr)
-	targetPlr.CharacterAdded:Connect(function() removePlayerVisuals(targetPlr) end)
+	local function onChar(char)
+		removePlayerVisuals(targetPlr)
+		local hum = char:WaitForChild("Humanoid", 4)
+		if hum then
+			hum.Died:Connect(function()
+				removePlayerVisuals(targetPlr)
+			end)
+		end
+	end
+	if targetPlr.Character then
+		onChar(targetPlr.Character)
+	end
+	targetPlr.CharacterAdded:Connect(onChar)
+	targetPlr.CharacterRemoving:Connect(function()
+		removePlayerVisuals(targetPlr)
+	end)
 end
 
 for _, p in ipairs(Players:GetPlayers()) do hookPlayerCleanup(p) end
 Players.PlayerAdded:Connect(hookPlayerCleanup)
 Players.PlayerRemoving:Connect(removePlayerVisuals)
+
 local function isTeammate(targetPlr)
 	if not targetPlr or targetPlr == player then return true end
 	if player.Team ~= nil and targetPlr.Team ~= nil then
@@ -841,15 +876,28 @@ end
 
 local function createOrUpdateVisuals(targetPlr, color, tagText, showTracer, showName, transparency)
 	local char = targetPlr.Character
-	if not char then removePlayerVisuals(targetPlr) return end
+	if not char or not char:IsDescendantOf(Workspace) then
+		removePlayerVisuals(targetPlr)
+		return
+	end
 
-	local root = char:FindFirstChild("HumanoidRootPart")
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not root or not hum or hum.Health <= 0 then removePlayerVisuals(targetPlr) return end
+	local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+	local head = char:FindFirstChild("Head")
+
+	if not root or not hum or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead or not root:IsDescendantOf(Workspace) then
+		removePlayerVisuals(targetPlr)
+		return
+	end
+
+	if char:GetAttribute("Dead") == true or char:GetAttribute("KO") == true then
+		removePlayerVisuals(targetPlr)
+		return
+	end
 
 	local hl = highlights[targetPlr]
 	if not hl or hl.Adornee ~= char or hl.Parent ~= espDrawingGui then
-		if hl then hl:Destroy() end
+		if hl then pcall(function() hl:Destroy() end) end
 		hl = Instance.new("Highlight")
 		hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		hl.Adornee = char
@@ -862,36 +910,41 @@ local function createOrUpdateVisuals(targetPlr, color, tagText, showTracer, show
 	hl.OutlineTransparency = 0
 	hl.Enabled = true
 
-	local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
+	local posForTag = head and (head.Position + Vector3.new(0, 1.4, 0)) or (root.Position + Vector3.new(0, 2.4, 0))
+	local screenPos, onScreen = camera:WorldToViewportPoint(posForTag)
 
-	if showName and onScreen then
+	if showName and onScreen and screenPos.Z > 0 then
 		local lbl = nameLabels[targetPlr]
 		if not lbl or lbl.Parent ~= espDrawingGui then
-			if lbl then lbl:Destroy() end
+			if lbl then pcall(function() lbl:Destroy() end) end
 			lbl = Instance.new("TextLabel")
-			lbl.Size = UDim2.new(0, 160, 0, 20)
+			lbl.Size = UDim2.new(0, 180, 0, 22)
 			lbl.AnchorPoint = Vector2.new(0.5, 1)
 			lbl.BackgroundTransparency = 1
 			lbl.Font = Enum.Font.GothamBold
 			lbl.TextSize = 13
+			lbl.ZIndex = 50
 			lbl.Parent = espDrawingGui
 			nameLabels[targetPlr] = lbl
 		end
 		lbl.Visible = true
-		lbl.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - 24)
+		lbl.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
 		lbl.TextColor3 = color
 		lbl.Text = string.format("%s [%s]", targetPlr.DisplayName, tagText)
-	elseif nameLabels[targetPlr] then
-		nameLabels[targetPlr].Visible = false
+	else
+		if nameLabels[targetPlr] then
+			nameLabels[targetPlr].Visible = false
+		end
 	end
 
-	if showTracer and onScreen then
+	if showTracer and onScreen and screenPos.Z > 0 then
 		local line = tracerLines[targetPlr]
 		if not line or line.Parent ~= espDrawingGui then
-			if line then line:Destroy() end
+			if line then pcall(function() line:Destroy() end) end
 			line = Instance.new("Frame")
 			line.AnchorPoint = Vector2.new(0.5, 0.5)
 			line.BorderSizePixel = 0
+			line.ZIndex = 49
 			line.Parent = espDrawingGui
 			tracerLines[targetPlr] = line
 		end
@@ -906,8 +959,11 @@ local function createOrUpdateVisuals(targetPlr, color, tagText, showTracer, show
 		line.Position = UDim2.new(0, (origin.X + target.X) / 2, 0, (origin.Y + target.Y) / 2)
 		line.Rotation = angle
 		line.BackgroundColor3 = color
-	elseif tracerLines[targetPlr] then
-		tracerLines[targetPlr].Visible = false
+		line.BackgroundTransparency = 0.2
+	else
+		if tracerLines[targetPlr] then
+			tracerLines[targetPlr].Visible = false
+		end
 	end
 end
 
@@ -1337,37 +1393,266 @@ end)
 
 for _, obj in ipairs(Workspace:GetChildren()) do hookGunDrop(obj) end
 
+-- ----------------------------------------------------
+-- TSB Karakter ve Form Tespiti
+-- ----------------------------------------------------
+local function detectTSBCharacter(char)
+	if not char then return "Unknown" end
+
+	if char:FindFirstChild("Katana") or char:FindFirstChild("Sheath") or char:FindFirstChild("Saya") or char:FindFirstChild("AtomicBlade") then
+		return "Atomic"
+	end
+	if char:FindFirstChild("Bat") or char:FindFirstChild("MetalBat") or char:FindFirstChild("FoulBat") then
+		return "Bat"
+	end
+	if char:FindFirstChild("NinjaScarf") or char:FindFirstChild("NinjaBlade") or char:FindFirstChild("SonicScarf") then
+		return "Sonic"
+	end
+	if char:FindFirstChild("CyborgArm") or char:FindFirstChild("Core") or char:FindFirstChild("GenosCore") then
+		return "Genos"
+	end
+	if char:FindFirstChild("Bandages") or char:FindFirstChild("HunterHair") or char:FindFirstChild("HunterRobe") then
+		return "Garou"
+	end
+	if char:FindFirstChild("Cape") or char:FindFirstChild("BaldHead") or char:FindFirstChild("HeroSuit") then
+		return "Saitama"
+	end
+
+	local charName = char:GetAttribute("Character") or char:GetAttribute("Char") or char:GetAttribute("Class")
+	if charName and type(charName) == "string" then
+		local cLower = charName:lower()
+		if cLower:find("hunter") or cLower:find("garou") then return "Garou" end
+		if cLower:find("hero") or cLower:find("saitama") or cLower:find("bald") then return "Saitama" end
+		if cLower:find("blade") or cLower:find("atomic") or cLower:find("samurai") then return "Atomic" end
+		if cLower:find("bat") or cLower:find("brutal") or cLower:find("foul") then return "Bat" end
+		if cLower:find("ninja") or cLower:find("sonic") then return "Sonic" end
+		if cLower:find("cyborg") or cLower:find("genos") then return "Genos" end
+		if cLower:find("void") or cLower:find("suiryu") or cLower:find("fist") then return "Suiryu" end
+	end
+
+	return "Unknown"
+end
+
+local function getCounterState(targetPlr)
+	local char = targetPlr.Character
+	if not char or not char:IsDescendantOf(Workspace) then return nil end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then return nil end
+	local animator = hum:FindFirstChildOfClass("Animator")
+	if not animator then return nil end
+
+	local charType = detectTSBCharacter(char)
+
+	-- Ulti / Awakened Modu Kontrolü
+	local isUltMode = false
+	pcall(function()
+		if char:GetAttribute("Awakened") == true or char:GetAttribute("Ultimate") == true or char:GetAttribute("Mode") == "Awakened" or char:FindFirstChild("Awakening") or char:FindFirstChild("UltimateAura") then
+			isUltMode = true
+		end
+		if char:FindFirstChild("RedEyes") or char:FindFirstChild("AwakenedAura") or char:FindFirstChild("Aura") then
+			isUltMode = true
+		end
+	end)
+
+	local tracks = animator:GetPlayingAnimationTracks()
+	for _, track in ipairs(tracks) do
+		if track.IsPlaying then
+			local anim = track.Animation
+			local animId = anim and anim.AnimationId or ""
+			local animIdClean = animId:match("%d+") or ""
+			local trackName = track.Name:lower()
+
+			-- 1. DEATH COUNTER (Saitama Ulti Counter)
+			if animIdClean == "11343318134" or animIdClean == "13927612951" or trackName:find("deathcounter") or (trackName:find("death") and trackName:find("counter")) then
+				return {
+					isUlt = true,
+					label = "Death Counter",
+					color = Color3.fromRGB(255, 30, 30),
+					characterName = "Death Counter"
+				}
+			end
+
+			-- 2. GAROU (Flowing Water / Prey's Peril)
+			if animIdClean == "12272894215" or animIdClean == "12351854556" or animIdClean == "12273188754" or animIdClean == "14374357351" or (trackName:find("flowing") and trackName:find("water")) or trackName:find("prey") then
+				if isUltMode then
+					return {
+						isUlt = true,
+						label = "Garou Ulti counter",
+						color = Color3.fromRGB(180, 0, 255),
+						characterName = "Garou"
+					}
+				else
+					return {
+						isUlt = false,
+						label = "Garou counter",
+						color = Color3.fromRGB(0, 160, 255),
+						characterName = "Garou"
+					}
+				end
+			end
+
+			-- 3. ATOMIC SAMURAI (Pinpoint Cut / Split Second Counter)
+			if trackName:find("pinpoint") or trackName:find("splitsecond") or trackName:find("split_second") or (charType == "Atomic" and trackName:find("counter")) or animIdClean == "12447707844" then
+				if isUltMode then
+					return {
+						isUlt = true,
+						label = "Atomic Ulti counter",
+						color = Color3.fromRGB(255, 75, 0),
+						characterName = "Atomic"
+					}
+				else
+					return {
+						isUlt = false,
+						label = "Atomic counter",
+						color = Color3.fromRGB(255, 170, 0),
+						characterName = "Atomic"
+					}
+				end
+			end
+
+			-- 4. METAL BAT (Foul Counter / Grand Slam)
+			if trackName:find("foul") or (charType == "Bat" and trackName:find("counter")) or (trackName:find("grand") and trackName:find("slam")) then
+				if isUltMode then
+					return {
+						isUlt = true,
+						label = "Bat Ulti counter",
+						color = Color3.fromRGB(255, 0, 90),
+						characterName = "Bat"
+					}
+				else
+					return {
+						isUlt = false,
+						label = "Bat counter",
+						color = Color3.fromRGB(220, 20, 60),
+						characterName = "Bat"
+					}
+				end
+			end
+
+			-- 5. SONIC (Flash Counter)
+			if (charType == "Sonic" and trackName:find("counter")) or trackName:find("flashcounter") then
+				if isUltMode then
+					return {
+						isUlt = true,
+						label = "Sonic Ulti counter",
+						color = Color3.fromRGB(220, 80, 255),
+						characterName = "Sonic"
+					}
+				else
+					return {
+						isUlt = false,
+						label = "Sonic counter",
+						color = Color3.fromRGB(150, 40, 255),
+						characterName = "Sonic"
+					}
+				end
+			end
+
+			-- 6. GENEL / DİĞER (Diğer karakterlerin gerçek counter hareketleri)
+			if trackName:find("counter") and not trackName:find("run") and not trackName:find("walk") and not trackName:find("idle") then
+				local charLabel = (charType ~= "Unknown" and charType) or "Ulti"
+				if isUltMode then
+					return {
+						isUlt = true,
+						label = charLabel .. " Ulti counter",
+						color = Color3.fromRGB(255, 50, 150),
+						characterName = charLabel
+					}
+				else
+					return {
+						isUlt = false,
+						label = charLabel .. " counter",
+						color = Color3.fromRGB(0, 210, 255),
+						characterName = charLabel
+					}
+				end
+			end
+		end
+	end
+
+	-- 7. Karakterde özel FlowingWater nesnesi varsa
+	if char:FindFirstChild("FlowingWater") then
+		if isUltMode then
+			return {
+				isUlt = true,
+				label = "Garou Ulti counter",
+				color = Color3.fromRGB(180, 0, 255),
+				characterName = "Garou"
+			}
+		else
+			return {
+				isUlt = false,
+				label = "Garou counter",
+				color = Color3.fromRGB(0, 160, 255),
+				characterName = "Garou"
+			}
+		end
+	end
+
+	return nil
+end
+
 local function updateAllESP()
-	if not mm2EspEnabled and not normalEspEnabled then
+	if not mm2EspEnabled and not normalEspEnabled and not tsbCounterEspEnabled then
 		for p, _ in pairs(highlights) do removePlayerVisuals(p) end
 		if gunHighlight then gunHighlight.Enabled = false end
+		activeCounters = {}
 		return
 	end
 
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= player then
-			if mm2EspEnabled then
-				local role = getRole(p)
-				if mm2EspFlags.MurdererESP and role == "Murderer" then
-					createOrUpdateVisuals(p, Color3.fromRGB(255, 45, 45), "Katil", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
-				elseif mm2EspFlags.SheriffESP and role == "Sheriff" then
-					createOrUpdateVisuals(p, Color3.fromRGB(45, 120, 255), "Şerif", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
-				elseif mm2EspFlags.InnocentESP and role == "Innocent" then
-					createOrUpdateVisuals(p, Color3.fromRGB(45, 255, 110), "Masum", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
+			local counterInfo = nil
+			if tsbCounterEspEnabled then
+				counterInfo = getCounterState(p)
+			end
+
+			if counterInfo then
+				-- TSB Counter Aktif! Normal ESP'nin önüne geçer
+				activeCounters[p] = counterInfo
+				local espColor
+				if counterInfo.isUlt then
+					-- Rainbow (Chroma) Parlama
+					local hue = (tick() * 1.5) % 1
+					espColor = Color3.fromHSV(hue, 1, 1)
+				else
+					espColor = counterInfo.color or Color3.fromRGB(0, 160, 255)
+				end
+				createOrUpdateVisuals(p, espColor, counterInfo.label, false, true, 0.15)
+			else
+				-- Counter az önce aktifti ve şimdi bittiyse:
+				if activeCounters[p] then
+					activeCounters[p] = nil
+					if tsbCounterNotifyEnded and showToast then
+						local pName = p.DisplayName or p.Name
+						showToast("TSB COUNTER", string.format("%s Counter ended", pName), 3.5)
+					end
+				end
+
+				-- Normal ESP / MM2 ESP Mantığı
+				if mm2EspEnabled then
+					local role = getRole(p)
+					if mm2EspFlags.MurdererESP and role == "Murderer" then
+						createOrUpdateVisuals(p, Color3.fromRGB(255, 45, 45), "Katil", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
+					elseif mm2EspFlags.SheriffESP and role == "Sheriff" then
+						createOrUpdateVisuals(p, Color3.fromRGB(45, 120, 255), "Şerif", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
+					elseif mm2EspFlags.InnocentESP and role == "Innocent" then
+						createOrUpdateVisuals(p, Color3.fromRGB(45, 255, 110), "Masum", mm2EspFlags.Tracers, mm2EspFlags.Names, 0.3)
+					else
+						removePlayerVisuals(p)
+					end
+				elseif normalEspEnabled then
+					if normalEspTeamCheck then
+						local isAlly = isTeammate(p)
+						local espColor = isAlly and Color3.fromRGB(45, 255, 110) or Color3.fromRGB(255, 45, 45)
+						local teamTag = (p.Team and p.Team.Name) or (isAlly and "Takım" or "Düşman")
+						createOrUpdateVisuals(p, espColor, teamTag, normalEspTracers, normalEspNames, normalEspTransparency)
+					else
+						createOrUpdateVisuals(p, normalEspColor, "Oyuncu", normalEspTracers, normalEspNames, normalEspTransparency)
+					end
 				else
 					removePlayerVisuals(p)
 				end
-			elseif normalEspEnabled then
-				if normalEspTeamCheck then
-					local isAlly = isTeammate(p)
-					local espColor = isAlly and Color3.fromRGB(45, 255, 110) or Color3.fromRGB(255, 45, 45)
-					local teamTag = (p.Team and p.Team.Name) or (isAlly and "Takım" or "Düşman")
-					createOrUpdateVisuals(p, espColor, teamTag, normalEspTracers, normalEspNames, normalEspTransparency)
-				else
-					createOrUpdateVisuals(p, normalEspColor, "Oyuncu", normalEspTracers, normalEspNames, normalEspTransparency)
-				end
-			else
-				removePlayerVisuals(p)
 			end
 		end
 	end
@@ -4077,6 +4362,33 @@ end)() -- End MM2 Tab Scope
 		autoBlockEnabled = not autoBlockEnabled
 		setAbVisual(autoBlockEnabled)
 	end)
+
+
+	-- 2. Counter ESP (TSB)
+	local cEspCard, cEspToggleBtn, setCEspVisual = createModuleCard(tsbContent, "Counter ESP (TSB)")
+	local cEspGear = createGearButton(cEspCard)
+	local cEspPanel = createSettingsPanel(tsbContent, 50)
+
+	addSubToggle(cEspPanel, "Death Counter Bildirimi", tsbCounterNotifyEnded, function(s)
+		tsbCounterNotifyEnded = s
+	end)
+
+	cEspGear.MouseButton1Click:Connect(function()
+		cEspPanel.Visible = not cEspPanel.Visible
+	end)
+
+	cEspToggleBtn.MouseButton1Click:Connect(function()
+		tsbCounterEspEnabled = not tsbCounterEspEnabled
+		setCEspVisual(tsbCounterEspEnabled)
+		if not tsbCounterEspEnabled then
+			for p, _ in pairs(activeCounters) do
+				activeCounters[p] = nil
+				if not normalEspEnabled and not mm2EspEnabled then
+					removePlayerVisuals(p)
+				end
+			end
+		end
+	end)
 end)() -- End TSB Tab Scope
 
 
@@ -4101,42 +4413,32 @@ end)() -- End TSB Tab Scope
 	toastLayout.Parent = toastContainer
 
 	local function showToastNotification(notifyTitle, notifyDesc, displayDuration)
+		local duration = displayDuration or 3.5
 
 		local toast = Instance.new("Frame")
-		toast.Size = UDim2.new(1, 0, 0, 42)
+		toast.Size = UDim2.new(1, 0, 0, 44)
 		toast.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		toast.BorderSizePixel = 0
+		toast.ClipsDescendants = true
 		toast.ZIndex = 16
 		toast.Parent = toastContainer
 
 		local tCorner = Instance.new("UICorner")
-		tCorner.CornerRadius = UDim.new(0, 6)
+		tCorner.CornerRadius = UDim.new(0, 7)
 		tCorner.Parent = toast
 
 		local tStroke = Instance.new("UIStroke")
-		tStroke.Color = Color3.fromRGB(32, 32, 32)
-		tStroke.Thickness = 1
+		tStroke.Color = Color3.fromRGB(36, 36, 36)
+		tStroke.Thickness = 1.2
 		tStroke.Parent = toast
-
-		local tBar = Instance.new("Frame")
-		tBar.Size = UDim2.new(0, 2, 1, -12)
-		tBar.Position = UDim2.new(0, 6, 0, 6)
-		tBar.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
-		tBar.BorderSizePixel = 0
-		tBar.ZIndex = 17
-		tBar.Parent = toast
-
-		local bCorn = Instance.new("UICorner")
-		bCorn.CornerRadius = UDim.new(1, 0)
-		bCorn.Parent = tBar
 
 		local tTitle = Instance.new("TextLabel")
 		tTitle.Text = notifyTitle
 		tTitle.Font = Enum.Font.GothamBold
 		tTitle.TextSize = 12
 		tTitle.TextColor3 = Color3.fromRGB(245, 245, 245)
-		tTitle.Size = UDim2.new(1, -24, 0, 16)
-		tTitle.Position = UDim2.new(0, 16, 0, 5)
+		tTitle.Size = UDim2.new(1, -20, 0, 16)
+		tTitle.Position = UDim2.new(0, 14, 0, 6)
 		tTitle.TextXAlignment = Enum.TextXAlignment.Left
 		tTitle.BackgroundTransparency = 1
 		tTitle.ZIndex = 17
@@ -4146,111 +4448,54 @@ end)() -- End TSB Tab Scope
 		tDesc.Text = notifyDesc
 		tDesc.Font = Enum.Font.Gotham
 		tDesc.TextSize = 10
-		tDesc.TextColor3 = Color3.fromRGB(140, 140, 140)
-		tDesc.Size = UDim2.new(1, -24, 0, 14)
-		tDesc.Position = UDim2.new(0, 16, 0, 22)
+		tDesc.TextColor3 = Color3.fromRGB(160, 160, 160)
+		tDesc.Size = UDim2.new(1, -20, 0, 14)
+		tDesc.Position = UDim2.new(0, 14, 0, 24)
 		tDesc.TextXAlignment = Enum.TextXAlignment.Left
 		tDesc.BackgroundTransparency = 1
 		tDesc.ZIndex = 17
 		tDesc.Parent = toast
 
-		toast.BackgroundTransparency = 1
-		tTitle.TextTransparency = 1
-		tDesc.TextTransparency = 1
-		tStroke.Transparency = 1
-		tBar.BackgroundTransparency = 1
+		-- Alt kısımdaki beyaz çizgi (En altta yer alır, sağdan sola doğru kısalır)
+		local progressBar = Instance.new("Frame")
+		progressBar.Name = "ProgressBar"
+		progressBar.Size = UDim2.new(1, 0, 0, 2)
+		progressBar.Position = UDim2.new(0, 0, 1, -2)
+		progressBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		progressBar.BorderSizePixel = 0
+		progressBar.ZIndex = 18
+		progressBar.Parent = toast
 
-		TweenService:Create(toast, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-		TweenService:Create(tTitle, TweenInfo.new(0.25), {TextTransparency = 0}):Play()
-		TweenService:Create(tDesc, TweenInfo.new(0.25), {TextTransparency = 0}):Play()
-		TweenService:Create(tStroke, TweenInfo.new(0.25), {Transparency = 0}):Play()
-		TweenService:Create(tBar, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
+		-- Giriş Animasyonu (Sağdan içeri kayarak girer ve belirir)
+		toast.Position = UDim2.new(1, 40, 0, 0)
+		toast.BackgroundTransparency = 0.5
+		TweenService:Create(toast, TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, 0, 0, 0),
+			BackgroundTransparency = 0
+		}):Play()
 
-		task.delay(displayDuration or 3, function()
+		-- Beyaz çizginin sağdan sola doğru kısalma animasyonu
+		TweenService:Create(progressBar, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+			Size = UDim2.new(0, 0, 0, 2)
+		}):Play()
+
+		-- Süre bittiğinde sağa doğru kayarak kaybolur
+		task.delay(duration, function()
 			if toast and toast.Parent then
-				local closeTween = TweenService:Create(toast, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+				local slideOut = TweenService:Create(toast, TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+					Position = UDim2.new(1, 60, 0, 0),
 					BackgroundTransparency = 1
 				})
-				TweenService:Create(tTitle, TweenInfo.new(0.25), {TextTransparency = 1}):Play()
-				TweenService:Create(tDesc, TweenInfo.new(0.25), {TextTransparency = 1}):Play()
-				TweenService:Create(tStroke, TweenInfo.new(0.25), {Transparency = 1}):Play()
-				TweenService:Create(tBar, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
-				closeTween:Play()
-				closeTween.Completed:Connect(function()
+				slideOut:Play()
+				slideOut.Completed:Connect(function()
 					toast:Destroy()
 				end)
 			end
 		end)
 	end
 
-	-- Matematiksel Çapraz Çizgili Odak Vektörü (Crosshair Vector)
-	local function drawReticleVector(parentFrame)
-		local reticle = Instance.new("Frame")
-		reticle.Size = UDim2.new(0, 14, 0, 14)
-		reticle.AnchorPoint = Vector2.new(0.5, 0.5)
-		reticle.Position = UDim2.new(0.5, 0, 0.5, 0)
-		reticle.BackgroundTransparency = 1
-		reticle.ZIndex = 6
-		reticle.Parent = parentFrame
-
-		local nLine = Instance.new("Frame")
-		nLine.Size = UDim2.new(0, 1.5, 0, 4)
-		nLine.Position = UDim2.new(0.5, -0.75, 0, 0)
-		nLine.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-		nLine.BorderSizePixel = 0
-		nLine.ZIndex = 7
-		nLine.Parent = reticle
-
-		local sLine = Instance.new("Frame")
-		sLine.Size = UDim2.new(0, 1.5, 0, 4)
-		sLine.Position = UDim2.new(0.5, -0.75, 1, -4)
-		sLine.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-		sLine.BorderSizePixel = 0
-		sLine.ZIndex = 7
-		sLine.Parent = reticle
-
-		local wLine = Instance.new("Frame")
-		wLine.Size = UDim2.new(0, 4, 0, 1.5)
-		wLine.Position = UDim2.new(0, 0, 0.5, -0.75)
-		wLine.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-		wLine.BorderSizePixel = 0
-		wLine.ZIndex = 7
-		wLine.Parent = reticle
-
-		local eLine = Instance.new("Frame")
-		eLine.Size = UDim2.new(0, 4, 0, 1.5)
-		eLine.Position = UDim2.new(1, -4, 0.5, -0.75)
-		eLine.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-		eLine.BorderSizePixel = 0
-		eLine.ZIndex = 7
-		eLine.Parent = reticle
-
-		return reticle
-	end
-
-	-- Matematiksel Kalkan Vektörü (Shield Vector Geometry)
-	local function drawShieldVector(parentFrame)
-		local shield = Instance.new("Frame")
-		shield.Size = UDim2.new(0, 12, 0, 14)
-		shield.AnchorPoint = Vector2.new(0.5, 0.5)
-		shield.Position = UDim2.new(0.5, 0, 0.5, 0)
-		shield.BackgroundColor3 = Color3.fromRGB(160, 160, 160)
-		shield.BorderSizePixel = 0
-		shield.ZIndex = 6
-		shield.Parent = parentFrame
-
-		local sCorn = Instance.new("UICorner")
-		sCorn.CornerRadius = UDim.new(0, 3)
-		sCorn.Parent = shield
-
-		return shield
-	end
-
-	-- Başlatma Bildirimi
-	task.delay(0.5, function()
-		showToast = showToastNotification
+	showToast = showToastNotification
 	showToastNotification("ZWYY SYSTEM", "Obsidian arayüz başarıyla yüklendi.", 3)
-	end)
 
 end)() -- End Vector Extensions & Toast Scope
 
@@ -4664,7 +4909,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 		camera.CFrame = camera.CFrame * CFrame.new(0, 0, 0, 1, 0, 0, 0, stretchScale, 0, 0, 0, 1)
 	end
 
-	if mm2EspEnabled or normalEspEnabled then
+	if mm2EspEnabled or normalEspEnabled or tsbCounterEspEnabled then
 		pcall(updateAllESP)
 	end
 end)
