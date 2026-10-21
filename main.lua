@@ -63,6 +63,189 @@ local speedGlitchPower = 45
 
 local optimizerEnabled = false
 
+-- ----------------------------------------------------
+-- Aspect Ratio Hedefleme & Fare Duzeltme Motoru
+-- (Stretched Resolution acikken merminin asagiya/baska yere gitmesini onler)
+-- ----------------------------------------------------
+local rawMouse = player and player:GetMouse()
+local isCalculatingHit = false
+
+local function getCorrectedMouseRay(customX, customY)
+	local cam = Workspace.CurrentCamera or camera
+	if not cam then return nil end
+	local vp = cam.ViewportSize
+	local mLoc = UserInputService:GetMouseLocation()
+	local x = customX or mLoc.X
+	local y = customY or mLoc.Y
+
+	if aspectRatioEnabled and stretchScale and stretchScale > 0 and stretchScale ~= 1 then
+		local cY = vp.Y / 2
+		local dy = y - cY
+		y = cY + (dy / stretchScale)
+	end
+
+	return cam:ScreenPointToRay(x, y)
+end
+
+local function getCorrectedMouseHit()
+	if isCalculatingHit then
+		return rawMouse and rawMouse.Hit, rawMouse and rawMouse.Target
+	end
+	isCalculatingHit = true
+
+	local success, hitCF, hitPart = pcall(function()
+		local ray = getCorrectedMouseRay()
+		if not ray then
+			return rawMouse and rawMouse.Hit, rawMouse and rawMouse.Target
+		end
+
+		local char = player and player.Character
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		local ignoreList = {}
+		if char then
+			table.insert(ignoreList, char)
+		end
+		params.FilterDescendantsInstances = ignoreList
+		params.IgnoreWater = true
+
+		local result = Workspace:Raycast(ray.Origin, ray.Direction * 3000, params)
+		if result then
+			return CFrame.new(result.Position, result.Position + ray.Direction), result.Instance
+		else
+			return CFrame.new(ray.Origin + ray.Direction * 3000), nil
+		end
+	end)
+
+	isCalculatingHit = false
+
+	if success and hitCF then
+		return hitCF, hitPart
+	end
+	return rawMouse and rawMouse.Hit, rawMouse and rawMouse.Target
+end
+
+pcall(function()
+	if hookmetamethod then
+		local oldIndex
+		oldIndex = hookmetamethod(game, "__index", function(self, key)
+			if aspectRatioEnabled and not isCalculatingHit then
+				if typeof(self) == "Instance" and self:IsA("Mouse") then
+					if key == "Hit" then
+						local hitCF = getCorrectedMouseHit()
+						if hitCF then return hitCF end
+					elseif key == "Target" then
+						local _, hitPart = getCorrectedMouseHit()
+						return hitPart
+					elseif key == "UnitRay" then
+						local ray = getCorrectedMouseRay()
+						if ray then return ray end
+					end
+				end
+			end
+			return oldIndex(self, key)
+		end)
+
+		local oldNamecall
+		oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+			local method = getnamecallmethod()
+			if aspectRatioEnabled and (method == "ScreenPointToRay" or method == "ViewportPointToRay") then
+				if typeof(self) == "Instance" and self:IsA("Camera") then
+					local args = {...}
+					local x = args[1]
+					local y = args[2]
+					if type(x) == "number" and type(y) == "number" and stretchScale and stretchScale > 0 and stretchScale ~= 1 then
+						local cY = self.ViewportSize.Y / 2
+						local dy = y - cY
+						args[2] = cY + (dy / stretchScale)
+						return oldNamecall(self, unpack(args))
+					end
+				end
+			end
+			return oldNamecall(self, ...)
+		end)
+	else
+		local gmt = getrawmetatable and getrawmetatable(game)
+		local setro = setreadonly or make_writeable
+		if gmt and setro then
+			setro(gmt, false)
+			local oldIndex = gmt.__index
+			local oldNamecall = gmt.__namecall
+
+			gmt.__index = (newcclosure and newcclosure(function(self, key)
+				if aspectRatioEnabled and not isCalculatingHit then
+					if typeof(self) == "Instance" and self:IsA("Mouse") then
+						if key == "Hit" then
+							local hitCF = getCorrectedMouseHit()
+							if hitCF then return hitCF end
+						elseif key == "Target" then
+							local _, hitPart = getCorrectedMouseHit()
+							return hitPart
+						elseif key == "UnitRay" then
+							local ray = getCorrectedMouseRay()
+							if ray then return ray end
+						end
+					end
+				end
+				return oldIndex(self, key)
+			end)) or function(self, key)
+				if aspectRatioEnabled and not isCalculatingHit then
+					if typeof(self) == "Instance" and self:IsA("Mouse") then
+						if key == "Hit" then
+							local hitCF = getCorrectedMouseHit()
+							if hitCF then return hitCF end
+						elseif key == "Target" then
+							local _, hitPart = getCorrectedMouseHit()
+							return hitPart
+						elseif key == "UnitRay" then
+							local ray = getCorrectedMouseRay()
+							if ray then return ray end
+						end
+					end
+				end
+				return oldIndex(self, key)
+			end
+
+			if oldNamecall then
+				gmt.__namecall = (newcclosure and newcclosure(function(self, ...)
+					local method = getnamecallmethod()
+					if aspectRatioEnabled and (method == "ScreenPointToRay" or method == "ViewportPointToRay") then
+						if typeof(self) == "Instance" and self:IsA("Camera") then
+							local args = {...}
+							local x = args[1]
+							local y = args[2]
+							if type(x) == "number" and type(y) == "number" and stretchScale and stretchScale > 0 and stretchScale ~= 1 then
+								local cY = self.ViewportSize.Y / 2
+								local dy = y - cY
+								args[2] = cY + (dy / stretchScale)
+								return oldNamecall(self, unpack(args))
+							end
+						end
+					end
+					return oldNamecall(self, ...)
+				end)) or function(self, ...)
+					local method = getnamecallmethod()
+					if aspectRatioEnabled and (method == "ScreenPointToRay" or method == "ViewportPointToRay") then
+						if typeof(self) == "Instance" and self:IsA("Camera") then
+							local args = {...}
+							local x = args[1]
+							local y = args[2]
+							if type(x) == "number" and type(y) == "number" and stretchScale and stretchScale > 0 and stretchScale ~= 1 then
+								local cY = self.ViewportSize.Y / 2
+								local dy = y - cY
+								args[2] = cY + (dy / stretchScale)
+								return oldNamecall(self, unpack(args))
+							end
+						end
+					end
+					return oldNamecall(self, ...)
+				end
+			end
+			setro(gmt, true)
+		end
+	end
+end)
+
 -- TP Drop Gun Tuş Ataması
 local tpGunKey = nil
 local tpKeybindBtn = nil
