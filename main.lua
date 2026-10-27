@@ -2139,7 +2139,14 @@ end)
 		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
 		local eRoot = enemyChar and enemyChar:FindFirstChild("HumanoidRootPart")
 		if myRoot and eRoot then
-			myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(eRoot.Position.X, myRoot.Position.Y, eRoot.Position.Z))
+			local targetPos = Vector3.new(eRoot.Position.X, myRoot.Position.Y, eRoot.Position.Z)
+			myRoot.CFrame = CFrame.lookAt(myRoot.Position, targetPos)
+			local cam = workspace.CurrentCamera
+			if cam and isShiftLocked and isShiftLocked() then
+				local camPos = cam.CFrame.Position
+				local focusPos = eRoot.Position + Vector3.new(0, 1.5, 0)
+				cam.CFrame = CFrame.lookAt(camPos, focusPos)
+			end
 		end
 	end
 
@@ -3910,6 +3917,717 @@ end)() -- End Main Tab Scope 3
 	end)
 
 end)() -- End Main Tab Scope 4
+
+-- =========================================================================
+-- MAIN SEKTMESI MODULLERI - BOLUM 5 (FULLBRIGHT & FLY GUI)
+-- =========================================================================
+;(function() -- Main Tab Scope 5 (Luau 200 Register Limit Protection)
+
+	local Lighting = game:GetService("Lighting")
+	local TweenService = game:GetService("TweenService")
+	local UserInputService = game:GetService("UserInputService")
+	local RunService = game:GetService("RunService")
+
+	-- =====================================================================
+	-- 13. FULLBRIGHT (AYDINLATMA - SOFT & DENGELI)
+	-- =====================================================================
+	local fullBrightEnabled = false
+	local fbConnection = nil
+	local origLighting = {
+		Ambient = Lighting.Ambient,
+		OutdoorAmbient = Lighting.OutdoorAmbient,
+		Brightness = Lighting.Brightness,
+		GlobalShadows = Lighting.GlobalShadows,
+		ClockTime = Lighting.ClockTime,
+		FogEnd = Lighting.FogEnd
+	}
+
+	local function applyFullBright()
+		Lighting.Ambient = Color3.fromRGB(135, 135, 135)
+		Lighting.OutdoorAmbient = Color3.fromRGB(135, 135, 135)
+		Lighting.Brightness = 2.0
+		Lighting.GlobalShadows = false
+		Lighting.ClockTime = 14
+		Lighting.FogEnd = 100000
+	end
+
+	local function restoreLighting()
+		Lighting.Ambient = origLighting.Ambient
+		Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
+		Lighting.Brightness = origLighting.Brightness
+		Lighting.GlobalShadows = origLighting.GlobalShadows
+		Lighting.ClockTime = origLighting.ClockTime
+		Lighting.FogEnd = origLighting.FogEnd
+	end
+
+	local function toggleFullBright(state)
+		fullBrightEnabled = state
+		if fullBrightEnabled then
+			origLighting.Ambient = Lighting.Ambient
+			origLighting.OutdoorAmbient = Lighting.OutdoorAmbient
+			origLighting.Brightness = Lighting.Brightness
+			origLighting.GlobalShadows = Lighting.GlobalShadows
+			origLighting.ClockTime = Lighting.ClockTime
+			origLighting.FogEnd = Lighting.FogEnd
+
+			applyFullBright()
+			if fbConnection then fbConnection:Disconnect() end
+			fbConnection = Lighting.Changed:Connect(function(prop)
+				if fullBrightEnabled and (prop == "Ambient" or prop == "OutdoorAmbient" or prop == "Brightness" or prop == "GlobalShadows" or prop == "ClockTime" or prop == "FogEnd") then
+					applyFullBright()
+				end
+			end)
+			if showToast then showToast("AYDINLATMA", "FullBright aktif edildi.", 2) end
+		else
+			if fbConnection then
+				fbConnection:Disconnect()
+				fbConnection = nil
+			end
+			restoreLighting()
+			if showToast then showToast("AYDINLATMA", "FullBright kapatıldı.", 2) end
+		end
+	end
+
+	local fbCard, fbToggleBtn, setFbVisual = createModuleCard(mainContent, "FullBright (Aydınlatma)")
+	fbToggleBtn.MouseButton1Click:Connect(function()
+		toggleFullBright(not fullBrightEnabled)
+		setFbVisual(fullBrightEnabled)
+	end)
+
+	-- =====================================================================
+	-- 14. FLY GUI (V4/V3 MOTORU - SIYAH / BEYAZ OBSIDIAN TEMA)
+	-- =====================================================================
+	local flyGuiActive = false
+	local flyGuiScreen = nil
+	local flyEnabled = false
+	local flying = false
+	local flySpeed = 50
+	local speeds = 1
+	local currentKeybind = Enum.KeyCode.F
+	local settingKeybind = false
+	local keybindDisabled = false
+	local keybindHidden = false
+	local rotationSpeed = 1
+	local originalCollisionStates = {}
+	local nowe = false
+	local tpwalking = false
+	local verticalDir = 0
+	local lastLookDirection = Vector3.new(0, 0, -1)
+
+	local bodyVelocity, bodyGyro, flyConnection, stateChangedConnection, animationConnection, noclipConnection, keybindConnection
+	local setFlyVisualRef = nil
+
+	local function getCharacter()
+		return player.Character or (player.CharacterAdded and player.CharacterAdded:Wait())
+	end
+
+	local function getRootPart()
+		local char = getCharacter()
+		return char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
+	end
+
+	local function waitForControlModule()
+		local success, controlModule = pcall(function()
+			return require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
+		end)
+		if success then return controlModule else return nil end
+	end
+
+	local function isMovementAnimation(animationId)
+		if not animationId then return false end
+		local movementAnimIds = {
+			"180436334", "180436148", "125750702", "180435571", "180435792"
+		}
+		for _, id in ipairs(movementAnimIds) do
+			if animationId:find(id) then return true end
+		end
+		return false
+	end
+
+	local function isCharacterAnchored()
+		local char = getCharacter()
+		local root = getRootPart()
+		if not char or not root then return false end
+		if root.Anchored then return true end
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.Sit then return true end
+		for _, part in ipairs(char:GetChildren()) do
+			if part:IsA("BasePart") and part.Anchored then return true end
+		end
+		return false
+	end
+
+	local function storeOriginalCollisions()
+		originalCollisionStates = {}
+		local char = player.Character
+		if char then
+			for _, v in ipairs(char:GetDescendants()) do
+				if v:IsA("BasePart") then
+					originalCollisionStates[v] = v.CanCollide
+				end
+			end
+		end
+	end
+
+	local function enableNoclip()
+		if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+		local env = (getgenv and getgenv()) or _G
+		if env.noclipfly == false then return end
+		storeOriginalCollisions()
+		noclipConnection = RunService.Stepped:Connect(function()
+			if not flyEnabled or not flying then return end
+			local char = player.Character
+			if char then
+				for _, v in ipairs(char:GetDescendants()) do
+					if v:IsA("BasePart") and v.CanCollide then
+						v.CanCollide = false
+					end
+				end
+			end
+		end)
+	end
+
+	local function disableNoclip()
+		if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+		local char = player.Character
+		if char then
+			for _, v in ipairs(char:GetDescendants()) do
+				if v:IsA("BasePart") then
+					if originalCollisionStates[v] ~= nil then
+						v.CanCollide = originalCollisionStates[v]
+					else
+						if v.Name == "Head" or v.Name == "HumanoidRootPart" or v.Name == "Torso" or v.Name == "UpperTorso" or v.Name == "LowerTorso" then
+							v.CanCollide = false
+						else
+							v.CanCollide = true
+						end
+					end
+				end
+			end
+		end
+		task.wait(0.05)
+		if char then
+			local humanoid = char:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end
+		end
+		originalCollisionStates = {}
+	end
+
+	local function stopFly()
+		flying = false
+		nowe = false
+		tpwalking = false
+		verticalDir = 0
+		if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+		if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+		if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+		if stateChangedConnection then stateChangedConnection:Disconnect() stateChangedConnection = nil end
+		if animationConnection then animationConnection:Disconnect() animationConnection = nil end
+		disableNoclip()
+		local char = getCharacter()
+		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+		local root = getRootPart()
+		if humanoid and root then
+			root.AssemblyAngularVelocity = Vector3.zero
+			root.AssemblyLinearVelocity = Vector3.zero
+			humanoid.PlatformStand = false
+			for _, state in ipairs({
+				Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Flying,
+				Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.GettingUp, Enum.HumanoidStateType.Jumping,
+				Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Physics, Enum.HumanoidStateType.PlatformStanding,
+				Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.Running, Enum.HumanoidStateType.RunningNoPhysics,
+				Enum.HumanoidStateType.Seated, Enum.HumanoidStateType.StrafingNoPhysics, Enum.HumanoidStateType.Swimming
+			}) do
+				humanoid:SetStateEnabled(state, true)
+			end
+			task.wait(0.05)
+			humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			if char:FindFirstChild("Animate") then
+				char.Animate.Disabled = false
+			end
+		end
+	end
+
+	local function startFlyV4()
+		local char = getCharacter()
+		local root = getRootPart()
+		if not char or not root or not flyEnabled then return end
+		flying = true
+		if bodyVelocity then bodyVelocity:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+		bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.Velocity = Vector3.zero
+		bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+		bodyVelocity.Parent = root
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+		bodyGyro.P = 1e4
+		bodyGyro.CFrame = root.CFrame
+		bodyGyro.Parent = root
+
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+				if track.Animation and track.Animation.AnimationId and isMovementAnimation(track.Animation.AnimationId) then
+					track:Stop()
+				end
+			end
+			task.wait(0.05)
+			humanoid.PlatformStand = true
+		end
+
+		local controlModule = waitForControlModule()
+		local camera = workspace.CurrentCamera
+		lastLookDirection = camera and camera.CFrame.LookVector or Vector3.new(0, 0, -1)
+
+		if flyConnection then flyConnection:Disconnect() end
+		flyConnection = RunService.Heartbeat:Connect(function()
+			if not flyEnabled or not flying or not root or not root.Parent then return end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum and not hum.PlatformStand then
+				hum.PlatformStand = true
+			end
+
+			local moveVec = Vector3.zero
+			if controlModule then
+				pcall(function() moveVec = controlModule:GetMoveVector() end)
+			end
+			if moveVec.Magnitude == 0 and hum and hum.MoveDirection.Magnitude > 0 and camera then
+				moveVec = camera.CFrame:VectorToObjectSpace(hum.MoveDirection)
+			end
+
+			local targetVelocity = Vector3.zero
+			if moveVec.Magnitude > 0 and camera then
+				local direction = camera.CFrame:VectorToWorldSpace(moveVec)
+				targetVelocity = direction.Unit * flySpeed
+			end
+
+			if verticalDir ~= 0 then
+				targetVelocity = targetVelocity + Vector3.new(0, verticalDir * flySpeed, 0)
+			end
+
+			if bodyVelocity then
+				bodyVelocity.Velocity = bodyVelocity.Velocity:Lerp(targetVelocity, 0.25)
+			end
+
+			if flyEnabled and flying and bodyGyro and not isCharacterAnchored() and camera then
+				local currentLookDirection = camera.CFrame.LookVector
+				local env = (getgenv and getgenv()) or _G
+				local rSpeed = tonumber(env.rotationSpeed) or rotationSpeed
+				local smoothedLookDirection = lastLookDirection:Lerp(currentLookDirection, math.clamp(rSpeed * 0.05 + 0.02, 0.02, 1))
+				lastLookDirection = smoothedLookDirection
+				bodyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + smoothedLookDirection)
+			end
+
+			if targetVelocity.Magnitude == 0 and bodyVelocity then
+				bodyVelocity.Velocity = Vector3.zero
+				root.AssemblyLinearVelocity = Vector3.zero
+			end
+		end)
+		enableNoclip()
+	end
+
+	local function startFlyV3()
+		if not flyEnabled then return end
+		flying = true
+		nowe = true
+		local char = getCharacter()
+		local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+		if hum then
+			for _, state in ipairs({
+				Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Flying,
+				Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.GettingUp, Enum.HumanoidStateType.Jumping,
+				Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Physics, Enum.HumanoidStateType.PlatformStanding,
+				Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.Running, Enum.HumanoidStateType.RunningNoPhysics,
+				Enum.HumanoidStateType.Seated, Enum.HumanoidStateType.StrafingNoPhysics, Enum.HumanoidStateType.Swimming
+			}) do
+				hum:SetStateEnabled(state, false)
+			end
+			hum:ChangeState(Enum.HumanoidStateType.Swimming)
+			hum.PlatformStand = true
+		end
+
+		local root = getRootPart()
+		if root then
+			if bodyGyro then bodyGyro:Destroy() end
+			if bodyVelocity then bodyVelocity:Destroy() end
+			bodyGyro = Instance.new("BodyGyro", root)
+			bodyGyro.P = 9e4
+			bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+			bodyGyro.cframe = root.CFrame
+
+			bodyVelocity = Instance.new("BodyVelocity", root)
+			bodyVelocity.velocity = Vector3.new(0, 0.1, 0)
+			bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+			task.spawn(function()
+				local ctrl = {f = 0, b = 0, l = 0, r = 0}
+				local speed_v3 = 0
+				local maxspeed = 50 * speeds
+				local camera = workspace.CurrentCamera
+				while nowe and root and root.Parent do
+					RunService.Heartbeat:Wait()
+					local moveVec = hum and hum.MoveDirection or Vector3.zero
+					if moveVec.Magnitude > 0 and camera then
+						speed_v3 = math.clamp(speed_v3 + 1, 0, maxspeed)
+						bodyVelocity.velocity = moveVec * speed_v3 + Vector3.new(0, verticalDir * maxspeed, 0)
+						bodyGyro.cframe = camera.CFrame
+					else
+						speed_v3 = 0
+						bodyVelocity.velocity = Vector3.new(0, verticalDir * maxspeed, 0)
+						if camera then bodyGyro.cframe = camera.CFrame end
+					end
+				end
+				if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+				if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+				if hum then hum.PlatformStand = false end
+			end)
+		end
+		enableNoclip()
+	end
+
+	local function startFly()
+		local env = (getgenv and getgenv()) or _G
+		if env.useV3Method then
+			startFlyV3()
+		else
+			startFlyV4()
+		end
+	end
+
+	local function closeFlyGui()
+		flyGuiActive = false
+		flyEnabled = false
+		stopFly()
+		if keybindConnection then
+			keybindConnection:Disconnect()
+			keybindConnection = nil
+		end
+		if flyGuiScreen and flyGuiScreen.Parent then
+			flyGuiScreen:Destroy()
+			flyGuiScreen = nil
+		end
+		if setFlyVisualRef then
+			setFlyVisualRef(false)
+		end
+		if showToast then showToast("FLY GUI", "Fly GUI kapatıldı.", 2) end
+	end
+
+	local function openFlyGui()
+		if flyGuiScreen and flyGuiScreen.Parent then
+			flyGuiScreen.Enabled = true
+			return
+		end
+
+		local env = (getgenv and getgenv()) or _G
+		rotationSpeed = tonumber(env.rotationSpeed) or 1
+		keybindHidden = (env.hideKeybind == true) or UserInputService.TouchEnabled
+		keybindDisabled = keybindHidden
+
+		local main = Instance.new("ScreenGui")
+		main.Name = "FlyGuiV4_Dark"
+		main.ResetOnSpawn = false
+		main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+		local targetParent = (gethui and gethui()) or (playerGui:FindFirstChild("RobloxGui") or playerGui)
+		main.Parent = targetParent
+		flyGuiScreen = main
+
+		local Frame = Instance.new("Frame")
+		Frame.Name = "FlyFrame"
+		Frame.Parent = main
+		Frame.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+		Frame.BorderColor3 = Color3.fromRGB(36, 36, 36)
+		Frame.BorderSizePixel = 1
+		Frame.Position = UDim2.new(0.12, 0, 0.38, 0)
+		Frame.Size = UDim2.new(0, 192, 0, keybindHidden and 58 or 88)
+		Frame.Active = true
+		Frame.Draggable = true
+
+		local frameCorner = Instance.new("UICorner", Frame)
+		frameCorner.CornerRadius = UDim.new(0, 8)
+		local frameStroke = Instance.new("UIStroke", Frame)
+		frameStroke.Color = Color3.fromRGB(42, 42, 42)
+		frameStroke.Thickness = 1
+
+		local function styleButton(btn, text, size, pos)
+			btn.Parent = Frame
+			btn.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+			btn.BorderSizePixel = 0
+			btn.Size = size
+			btn.Position = pos
+			btn.Font = Enum.Font.GothamBold
+			btn.Text = text
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.TextSize = 13
+			btn.AutoButtonColor = false
+
+			local c = Instance.new("UICorner", btn)
+			c.CornerRadius = UDim.new(0, 5)
+			local s = Instance.new("UIStroke", btn)
+			s.Color = Color3.fromRGB(40, 40, 40)
+			s.Thickness = 1
+
+			btn.MouseEnter:Connect(function()
+				TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32, 32, 32)}):Play()
+			end)
+			btn.MouseLeave:Connect(function()
+				TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(22, 22, 22)}):Play()
+			end)
+			return btn
+		end
+
+		local up = styleButton(Instance.new("TextButton"), "UP", UDim2.new(0, 44, 0, 26), UDim2.new(0, 4, 0, 4))
+		local down = styleButton(Instance.new("TextButton"), "DOWN", UDim2.new(0, 44, 0, 26), UDim2.new(0, 4, 0, 32))
+		local mine = styleButton(Instance.new("TextButton"), "-", UDim2.new(0, 44, 0, 26), UDim2.new(0, 50, 0, 32))
+		local plus = styleButton(Instance.new("TextButton"), "+", UDim2.new(0, 44, 0, 26), UDim2.new(0, 50, 0, 4))
+
+		local speed = Instance.new("TextLabel", Frame)
+		speed.Name = "speed"
+		speed.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+		speed.BorderSizePixel = 0
+		speed.Position = UDim2.new(0, 96, 0, 32)
+		speed.Size = UDim2.new(0, 44, 0, 26)
+		speed.Font = Enum.Font.GothamBold
+		speed.Text = tostring(env.useV3Method and speeds or flySpeed)
+		speed.TextColor3 = Color3.fromRGB(255, 255, 255)
+		speed.TextSize = 12
+		local sc = Instance.new("UICorner", speed)
+		sc.CornerRadius = UDim.new(0, 5)
+		local ss = Instance.new("UIStroke", speed)
+		ss.Color = Color3.fromRGB(36, 36, 36)
+
+		local titleLabel = Instance.new("TextLabel", Frame)
+		titleLabel.Name = "titleLabel"
+		titleLabel.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+		titleLabel.BorderSizePixel = 0
+		titleLabel.Position = UDim2.new(0, 96, 0, 4)
+		titleLabel.Size = UDim2.new(0, 92, 0, 26)
+		titleLabel.Font = Enum.Font.GothamBold
+		titleLabel.Text = "FLY GUI"
+		titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		titleLabel.TextSize = 12
+		local tc = Instance.new("UICorner", titleLabel)
+		tc.CornerRadius = UDim.new(0, 5)
+		local ts = Instance.new("UIStroke", titleLabel)
+		ts.Color = Color3.fromRGB(36, 36, 36)
+
+		local onof = styleButton(Instance.new("TextButton"), "fly", UDim2.new(0, 46, 0, 26), UDim2.new(0, 142, 0, 32))
+
+		local keybindLabel = Instance.new("TextLabel", Frame)
+		keybindLabel.Name = "keybindLabel"
+		keybindLabel.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+		keybindLabel.BorderSizePixel = 0
+		keybindLabel.Position = UDim2.new(0, 4, 0, 60)
+		keybindLabel.Size = UDim2.new(0, 44, 0, 24)
+		keybindLabel.Font = Enum.Font.GothamBold
+		keybindLabel.Text = tostring(currentKeybind):gsub("Enum.KeyCode.", "")
+		keybindLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		keybindLabel.TextSize = 12
+		local klc = Instance.new("UICorner", keybindLabel)
+		klc.CornerRadius = UDim.new(0, 5)
+		local kls = Instance.new("UIStroke", keybindLabel)
+		kls.Color = Color3.fromRGB(36, 36, 36)
+
+		local keybindBtn = styleButton(Instance.new("TextButton"), "Set Keybind", UDim2.new(0, 88, 0, 24), UDim2.new(0, 50, 0, 60))
+		local resetKeybindBtn = styleButton(Instance.new("TextButton"), "Reset", UDim2.new(0, 48, 0, 24), UDim2.new(0, 140, 0, 60))
+
+		local closebutton = Instance.new("TextButton", Frame)
+		closebutton.Name = "Close"
+		closebutton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		closebutton.BorderSizePixel = 0
+		closebutton.Size = UDim2.new(0, 26, 0, 22)
+		closebutton.Position = UDim2.new(0, 0, 0, -24)
+		closebutton.Font = Enum.Font.GothamBold
+		closebutton.Text = "X"
+		closebutton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		closebutton.TextSize = 13
+		local cbc = Instance.new("UICorner", closebutton)
+		cbc.CornerRadius = UDim.new(0, 5)
+		local cbs = Instance.new("UIStroke", closebutton)
+		cbs.Color = Color3.fromRGB(40, 40, 40)
+
+		local mini = Instance.new("TextButton", Frame)
+		mini.Name = "mini"
+		mini.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		mini.BorderSizePixel = 0
+		mini.Size = UDim2.new(0, 26, 0, 22)
+		mini.Position = UDim2.new(0, 28, 0, -24)
+		mini.Font = Enum.Font.GothamBold
+		mini.Text = "-"
+		mini.TextColor3 = Color3.fromRGB(255, 255, 255)
+		mini.TextSize = 16
+		local mc = Instance.new("UICorner", mini)
+		mc.CornerRadius = UDim.new(0, 5)
+		local ms = Instance.new("UIStroke", mini)
+		ms.Color = Color3.fromRGB(40, 40, 40)
+
+		local mini2 = Instance.new("TextButton", Frame)
+		mini2.Name = "mini2"
+		mini2.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		mini2.BorderSizePixel = 0
+		mini2.Size = UDim2.new(0, 26, 0, 22)
+		mini2.Position = UDim2.new(0, 28, 0, -24)
+		mini2.Font = Enum.Font.GothamBold
+		mini2.Text = "+"
+		mini2.TextColor3 = Color3.fromRGB(255, 255, 255)
+		mini2.TextSize = 16
+		mini2.Visible = false
+		local m2c = Instance.new("UICorner", mini2)
+		m2c.CornerRadius = UDim.new(0, 5)
+		local m2s = Instance.new("UIStroke", mini2)
+		m2s.Color = Color3.fromRGB(40, 40, 40)
+
+		if keybindHidden then
+			keybindLabel.Visible = false
+			keybindBtn.Visible = false
+			resetKeybindBtn.Visible = false
+		end
+
+		local function toggleFlightState()
+			flyEnabled = not flyEnabled
+			if flyEnabled then
+				onof.Text = "off"
+				onof.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+				startFly()
+			else
+				onof.Text = "fly"
+				onof.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+				stopFly()
+			end
+		end
+
+		onof.MouseButton1Click:Connect(toggleFlightState)
+
+		plus.MouseButton1Click:Connect(function()
+			local e = (getgenv and getgenv()) or _G
+			if e.useV3Method then
+				speeds = speeds + 1
+				speed.Text = tostring(speeds)
+			else
+				flySpeed = math.clamp(flySpeed + 50, 50, 1000)
+				speed.Text = tostring(flySpeed)
+			end
+		end)
+
+		mine.MouseButton1Click:Connect(function()
+			local e = (getgenv and getgenv()) or _G
+			if e.useV3Method then
+				speeds = math.max(1, speeds - 1)
+				speed.Text = tostring(speeds)
+			else
+				flySpeed = math.max(50, flySpeed - 50)
+				speed.Text = tostring(flySpeed)
+			end
+		end)
+
+		local function bindHold(btn, dir)
+			btn.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					verticalDir = dir
+				end
+			end)
+			btn.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					if verticalDir == dir then verticalDir = 0 end
+				end
+			end)
+		end
+		bindHold(up, 1)
+		bindHold(down, -1)
+
+		keybindBtn.MouseButton1Click:Connect(function()
+			if keybindDisabled then return end
+			if not settingKeybind then
+				settingKeybind = true
+				keybindBtn.Text = "Press key..."
+			else
+				settingKeybind = false
+				keybindBtn.Text = "Set Keybind"
+			end
+		end)
+
+		resetKeybindBtn.MouseButton1Click:Connect(function()
+			if keybindDisabled then return end
+			currentKeybind = Enum.KeyCode.F
+			keybindLabel.Text = "F"
+			settingKeybind = false
+			keybindBtn.Text = "Set Keybind"
+		end)
+
+		if keybindConnection then keybindConnection:Disconnect() end
+		keybindConnection = UserInputService.InputBegan:Connect(function(input, gpe)
+			if gpe or keybindDisabled then return end
+			if settingKeybind then
+				if input.KeyCode ~= Enum.KeyCode.Unknown then
+					currentKeybind = input.KeyCode
+					keybindLabel.Text = tostring(currentKeybind):gsub("Enum.KeyCode.", "")
+					settingKeybind = false
+					keybindBtn.Text = "Set Keybind"
+				end
+			else
+				if input.KeyCode == currentKeybind then
+					toggleFlightState()
+				end
+			end
+		end)
+
+		mini.MouseButton1Click:Connect(function()
+			for _, child in ipairs(Frame:GetChildren()) do
+				if child:IsA("GuiObject") and child ~= closebutton and child ~= mini and child ~= mini2 then
+					child.Visible = false
+				end
+			end
+			mini.Visible = false
+			mini2.Visible = true
+			Frame.BackgroundTransparency = 1
+			frameStroke.Transparency = 1
+			closebutton.Position = UDim2.new(0, 0, 0, 0)
+			mini2.Position = UDim2.new(0, 28, 0, 0)
+		end)
+
+		mini2.MouseButton1Click:Connect(function()
+			for _, child in ipairs(Frame:GetChildren()) do
+				if child:IsA("GuiObject") and child ~= mini2 and child ~= closebutton then
+					if not keybindHidden or (child ~= keybindLabel and child ~= keybindBtn and child ~= resetKeybindBtn) then
+						child.Visible = true
+					end
+				end
+			end
+			mini.Visible = true
+			mini2.Visible = false
+			Frame.BackgroundTransparency = 0
+			frameStroke.Transparency = 0
+			closebutton.Position = UDim2.new(0, 0, 0, -24)
+			mini.Position = UDim2.new(0, 28, 0, -24)
+		end)
+
+		closebutton.MouseButton1Click:Connect(function()
+			closeFlyGui()
+		end)
+	end
+
+	local function toggleFlyGui(state)
+		flyGuiActive = state
+		if flyGuiActive then
+			openFlyGui()
+			if showToast then showToast("FLY GUI", "Fly GUI açıldı.", 2) end
+		else
+			closeFlyGui()
+		end
+	end
+
+	local flyCard, flyToggleBtn, setFlyVisual = createModuleCard(mainContent, "Fly GUI")
+	setFlyVisualRef = setFlyVisual
+	flyToggleBtn.MouseButton1Click:Connect(function()
+		toggleFlyGui(not flyGuiActive)
+		setFlyVisual(flyGuiActive)
+	end)
+
+end)() -- End Main Tab Scope 5
+
 
 -- =========================================================================
 -- MM2 SEKMESİ MODÜLLERİ (ROL ESP, TP GUN, SHOOT, FLING SHERIFF & MURDERER)
